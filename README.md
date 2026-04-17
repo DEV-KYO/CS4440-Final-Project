@@ -1,0 +1,156 @@
+# 🎮 QuizBlitz
+
+A real-time multiplayer quiz game built in Java. Players join from their phones by scanning a QR code, answer timed questions, and compete for the top score.
+
+**OS concepts demonstrated:** Sockets, Multithreading, Shared Memory, Process Synchronization
+
+---
+
+## Architecture
+
+![QuizBlitz Architecture](architecture.svg)
+
+---
+
+## How it works
+
+1. One team member runs `GameServer.java` on their laptop
+2. The server prints a URL and QR code to the console
+3. Players scan the QR code → phone opens the game in a browser
+4. Players enter a name and tap "Join"
+5. Once enough players join, rounds begin automatically
+6. Each round: a question appears on all screens, 20 seconds to answer
+7. After all rounds, the winner is revealed
+
+All devices must be on the same Wi-Fi network.
+
+---
+
+## File structure
+
+```
+QuizBlitz/
+├── README.md                ← you are here
+├── SETUP.md                 ← step-by-step setup checklist
+├── architecture.svg
+│
+├── src/
+│   ├── GameServer.md        ← spec for GameServer.java
+│   ├── GameLoop.md          ← spec for GameLoop.java
+│   ├── Scoreboard.md        ← spec for Scoreboard.java
+│   └── QuestionBank.md      ← spec for Question.java + QuestionBank.java
+│
+├── web/
+│   └── index.md             ← spec for index.html
+│
+└── lib/
+    └── Java-WebSocket-1.5.7.jar
+```
+
+Each `.md` file in `src/` and `web/` is a specification for that file. Read the one assigned to you — it tells you what fields, methods, and message types your file is responsible for.
+
+---
+
+## Message protocol
+
+All messages between server and clients are JSON strings over WebSocket. Every message has a `type` and a `data` field.
+
+### Client → Server
+
+| Type | Data | When sent |
+|---|---|---|
+| `join` | `{ "name": "Jonas" }` | Player taps "Join" |
+| `answer` | `{ "questionId": 1, "choice": "B" }` | Player taps an answer |
+
+### Server → Client
+
+| Type | Data | When sent |
+|---|---|---|
+| `welcome` | `{ "name": "Jonas" }` | Join confirmed |
+| `waiting` | `{ "count": 3, "needed": 6 }` | Waiting for more players |
+| `question` | `{ "id": 1, "text": "...", "choiceA": "...", "choiceB": "...", "choiceC": "...", "choiceD": "..." }` | New round starts |
+| `timer` | `{ "secondsLeft": 15 }` | Every second during a round |
+| `round_end` | `{ "correct": "B", "scores": { "Jonas": 100, "Alex": 0 } }` | Timer hits zero |
+| `game_over` | `{ "winner": "Jonas", "finalScores": { ... } }` | All rounds done |
+
+**Important:** Everyone must parse and produce messages in this exact format. If your JSON keys don't match, integration will break.
+
+---
+
+## Development phases
+
+### Phase 1 — Skeleton (do together)
+
+Build the minimum viable connection as a group.
+
+**What gets built:**
+- `GameServer.java` with a WebSocket server that echoes messages back
+- A barebones `index.html` that connects and shows the echo
+
+**Done when:** Open `index.html` in a browser, connect to `ws://localhost:8080`, type something, see it on screen.
+
+Push to GitHub. Everyone clones.
+
+### Phase 2 — Build in parallel
+
+Each person works on their file independently. Read your file's `.md` spec for full details.
+
+| Person | Files | How to test alone |
+|---|---|---|
+| A | `Scoreboard.java` | Temporary `main()` that spins up threads calling `addPoints`. No sockets needed. |
+| B | `GameServer.java` | Phase 1 `index.html` + raw JSON messages. Stub scoreboard that just prints. |
+| C | `GameLoop.java` + `Question.java` + `QuestionBank.java` | Temporary `main()` with fake players. Replace broadcast with `println`. |
+| D | `index.html` | Mock incoming messages in JavaScript. No real server needed. |
+
+**Key rule:** Each person writes a temporary `main()` in their own class that simulates the parts they don't have yet. Nobody waits on anyone.
+
+### Phase 3 — Integration (everyone present)
+
+1. Pull all code into one project
+2. Wire `GameServer` → `Scoreboard` → `GameLoop`
+3. Run server, connect 2+ devices, play a full game
+4. Fix what breaks (usually JSON format mismatches or timing bugs)
+
+### Phase 4 — Polish and present
+
+- Add code comments explaining OS concepts
+- Set up QR code for easy joining
+- Build the presentation slides
+- Assign who presents which layer
+- Do a dry run
+
+---
+
+## Quick reference: who calls what
+
+```
+GameServer.onMessage()
+  ├── "join"   → scoreboard.addPlayer()
+  └── "answer" → gameLoop.checkAnswer()
+                   └── if correct → scoreboard.addPoints()
+
+GameLoop.run()
+  ├── checks scoreboard.playerCount()
+  ├── broadcasts questions via gameServer.broadcastToAll()
+  ├── Thread.sleep(20_000)
+  ├── broadcasts round results via scoreboard.snapshot()
+  └── broadcasts game over via scoreboard.winner()
+```
+
+---
+
+## Concepts cheat sheet
+
+If any of these terms are unfamiliar, here's the short version.
+
+**`synchronized`** — A Java keyword that locks a method so only one thread can run it at a time. If Thread A is inside a `synchronized` method, Thread B has to wait until Thread A finishes. This prevents two threads from corrupting shared data.
+
+**`volatile`** — A Java keyword for a variable that multiple threads read. It guarantees every thread sees the most recent value, not a stale cached copy. Lighter than `synchronized` but only works for simple reads/writes.
+
+**`Runnable`** — A Java interface with one method: `run()`. You write your thread's logic inside `run()`, then pass it to `new Thread(yourRunnable).start()`. This is how we create threads in this project.
+
+**`WebSocket`** — A protocol that keeps a two-way connection open between a server and a client (browser). Unlike regular HTTP (send request → get response → done), WebSocket lets the server push messages to the client at any time. The Java-WebSocket library handles the low-level details.
+
+**`HashMap`** — A Java data structure that stores key-value pairs. In our project, `Scoreboard` uses `HashMap<String, Integer>` to map player names to their scores. Fast lookups, but not thread-safe by default — that's why we add `synchronized`.
+
+**Race condition** — A bug that happens when two threads try to read and write the same data at the same time. Example: Player A and Player B both answer correctly at the same instant. Without synchronization, the score might only increment once instead of twice.

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>QuizBlitz — Phase 1 Echo Test</title>
+<style>
+    body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 600px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+    #log {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 12px;
+        height: 300px;
+        overflow-y: auto;
+        background: #f9f9f9;
+        font-family: monospace;
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
+    .log-entry { margin-bottom: 4px; }
+    .log-sent { color: #0066cc; }
+    .log-received { color: #006633; }
+    .log-system { color: #888; font-style: italic; }
+    input, button {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    input { width: 70%; }
+    button { width: 25%; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>QuizBlitz — Echo Test</h1>
+<p>Phase 1 skeleton. Type a message, hit send, see it echoed back.</p>
+
+<div id="log"></div>
+
+<input id="messageInput" type="text" placeholder="Type a message..." autocomplete="off">
+<button id="sendButton">Send</button>
+
+<script>
+    const log = document.getElementById("log");
+    const input = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+
+    function addLogEntry(text, cssClass) {
+        const div = document.createElement("div");
+        div.className = "log-entry " + cssClass;
+        div.textContent = text;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // Connect to the server. localhost works when both browser and server are
+    // on the same machine. For multi-device testing, replace with your IP.
+    const ws = new WebSocket("ws://localhost:8080");
+
+    ws.onopen = function() {
+        addLogEntry("[Connected to server]", "log-system");
+    };
+
+    ws.onmessage = function(event) {
+        addLogEntry("← " + event.data, "log-received");
+    };
+
+    ws.onclose = function() {
+        addLogEntry("[Disconnected from server]", "log-system");
+    };
+
+    ws.onerror = function() {
+        addLogEntry("[Connection error — is the server running?]", "log-system");
+    };
+
+    function sendMessage() {
+        const text = input.value.trim();
+        if (text === "") return;
+        if (ws.readyState !== WebSocket.OPEN) {
+            addLogEntry("[Not connected]", "log-system");
+            return;
+        }
+        ws.send(text);
+        addLogEntry("→ " + text, "log-sent");
+        input.value = "";
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") sendMessage();
+    });
+</script>
+</body>
+</html>

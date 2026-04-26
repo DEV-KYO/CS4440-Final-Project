@@ -29,25 +29,34 @@ All devices must be on the same Wi-Fi network.
 ## File structure
 
 ```
-QuizBlitz/
-├── README.md                ← you are here
-├── SETUP.md                 ← step-by-step setup checklist
+CS4440-Final-Project/
+├── README.md                      ← you are here
+├── SETUP.md                       ← step-by-step setup checklist
 ├── architecture.svg
+├── pom.xml                        ← Maven config (dependencies, build)
+├── .gitignore
 │
-├── src/
-│   ├── GameServer.md        ← spec for GameServer.java
-│   ├── GameLoop.md          ← spec for GameLoop.java
-│   ├── Scoreboard.md        ← spec for Scoreboard.java
-│   └── QuestionBank.md      ← spec for Question.java + QuestionBank.java
+├── docs/                          ← specs for each file / role
+│   ├── GameServer.md
+│   ├── GameLoop.md
+│   ├── Scoreboard.md
+│   ├── QuestionBank.md
+│   ├── index.md
+│   └── Presentation.md
 │
-├── web/
-│   └── index.md             ← spec for index.html
-│
-└── lib/
-    └── Java-WebSocket-1.5.7.jar
+└── src/
+    └── main/
+        ├── java/
+        │   └── quizblitz/         ← all .java files go here
+        │       └── GameServer.java
+        └── resources/
+            └── web/
+                └── index.html
 ```
 
-Each `.md` file in `src/` and `web/` is a specification for that file. Read the one assigned to you — it tells you what fields, methods, and message types your file is responsible for.
+Each `.md` file in `docs/` is a specification for one file or role. Read the one assigned to you — it tells you what fields, methods, and message types you're responsible for.
+
+**Note:** Dependencies (Java-WebSocket, org.json) are managed by Maven via `pom.xml`. You don't need to download any JARs manually — see `SETUP.md`.
 
 ---
 
@@ -79,11 +88,11 @@ All messages between server and clients are JSON strings over WebSocket. Every m
 
 ## Development phases
 
-### Phase 1 — Skeleton (do together)
+### Phase 1 — Skeleton (do together) ✅
 
 Build the minimum viable connection as a group.
 
-**What gets built:**
+**What got built:**
 - `GameServer.java` with a WebSocket server that echoes messages back
 - A barebones `index.html` that connects and shows the echo
 
@@ -93,14 +102,16 @@ Push to GitHub. Everyone clones.
 
 ### Phase 2 — Build in parallel
 
-Each person works on their file independently. Read your file's `.md` spec for full details.
+Each person works on their files independently. Read your spec in `docs/` for full details.
 
-| Person | Files | How to test alone |
-|---|---|---|
-| A | `Scoreboard.java` | Temporary `main()` that spins up threads calling `addPoints`. No sockets needed. |
-| B | `GameServer.java` | Phase 1 `index.html` + raw JSON messages. Stub scoreboard that just prints. |
-| C | `GameLoop.java` + `Question.java` + `QuestionBank.java` | Temporary `main()` with fake players. Replace broadcast with `println`. |
-| D | `index.html` | Mock incoming messages in JavaScript. No real server needed. |
+| Person | Role | Files / Deliverables | How to test alone |
+|---|---|---|---|
+| A | Server lead | `GameServer.java` (Phase 2 logic — JSON routing, broadcasting) | Phase 1 `index.html` + raw JSON messages. Stub Scoreboard that just prints. |
+| B | Frontend lead | `index.html` (5 screens, message handling, styling) | Mock incoming messages in JS. No real server needed. |
+| C | Concurrency | `Scoreboard.java` | Temp `main()` spinning up threads calling `addPoints`. No sockets. |
+| D | Game engine | `GameLoop.java` | Temp `main()` with fake players. Replace broadcast with `println`. |
+| E | Content + data | `Question.java`, `QuestionBank.java`, write 10+ OS-themed quiz questions, define scoring rules | Temp `main()` that prints the question bank as JSON. |
+| F | Integration + presentation | QR code helper, HTTP server (port 8081), slide deck, demo script, integration testing | See `docs/Presentation.md` |
 
 **Key rule:** Each person writes a temporary `main()` in their own class that simulates the parts they don't have yet. Nobody waits on anyone.
 
@@ -111,12 +122,14 @@ Each person works on their file independently. Read your file's `.md` spec for f
 3. Run server, connect 2+ devices, play a full game
 4. Fix what breaks (usually JSON format mismatches or timing bugs)
 
+Person F leads this phase — running the full game flow, filing issues for what breaks, coordinating fixes.
+
 ### Phase 4 — Polish and present
 
 - Add code comments explaining OS concepts
-- Set up QR code for easy joining
+- Verify the QR code flow works end-to-end
 - Build the presentation slides
-- Assign who presents which layer
+- Assign who presents which layer (each person presents the file they wrote)
 - Do a dry run
 
 ---
@@ -154,3 +167,5 @@ If any of these terms are unfamiliar, here's the short version.
 **`HashMap`** — A Java data structure that stores key-value pairs. In our project, `Scoreboard` uses `HashMap<String, Integer>` to map player names to their scores. Fast lookups, but not thread-safe by default — that's why we add `synchronized`.
 
 **Race condition** — A bug that happens when two threads try to read and write the same data at the same time. Example: Player A and Player B both answer correctly at the same instant. Without synchronization, the score might only increment once instead of twice.
+
+**Maven** — A build tool that handles dependencies and compilation. The `pom.xml` file declares what libraries we need (like Java-WebSocket), and Maven downloads them automatically. Saves us from emailing JAR files around.

@@ -37,13 +37,13 @@ If not, download from [git-scm.com](https://git-scm.com/).
 ## 4. Clone the repo
 
 ```
-git clone https://github.com/<our-org>/QuizBlitz.git
+https://github.com/DEV-KYO/CS4440-Final-Project.git
 ```
 
 Or use GitHub CLI:
 
 ```
-gh repo clone <our-org>/QuizBlitz
+gh repo clone DEV-KYO/CS4440-Final-Project
 ```
 
 ---

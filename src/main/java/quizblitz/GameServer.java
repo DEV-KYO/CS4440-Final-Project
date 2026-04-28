@@ -25,6 +25,8 @@ public class GameServer extends WebSocketServer {
     public GameServer(InetSocketAddress address) {
         super(address);
     }
+    
+    private static final Scoreboard scoreboard = new Scoreboard();
 
     // Called when a new client connects
     @Override

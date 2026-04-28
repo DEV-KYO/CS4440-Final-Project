@@ -58,6 +58,13 @@ public class GameServer extends WebSocketServer {
         System.out.println("Server started on port " + PORT);
         System.out.println("Connect from a browser at: ws://localhost:" + PORT);
     }
+    
+    // Temporary web server broadcast function
+    public void broadcastToAll(String message) {
+        for (WebSocket conn : getConnections()) {
+            conn.send(message);
+        }
+    }
 
     public static void main(String[] args) {
         GameServer server = new GameServer(new InetSocketAddress(PORT));

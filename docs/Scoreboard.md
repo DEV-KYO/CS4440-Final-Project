@@ -1,74 +1,72 @@
 # Scoreboard.java
 
-**Owner:** Person A
+**Owner:** Person C
 
-**What it is:** The shared data object that holds every player's score. This is the most important file for demonstrating OS concepts — it's where synchronization happens.
+**What it does:** Keeps track of every player's score. It's a shared object — both GameServer and GameLoop use the same instance at the same time, from different threads.
 
-**OS concepts:** Shared memory, mutual exclusion (synchronized methods), race condition prevention.
+**OS concepts covered:** Process Synchronization — this is the clearest example of it in the whole project. Multiple threads share the same scoreboard object, so without synchronization you get a race condition on score updates. The `synchronized` keyword enforces mutual exclusion: only one thread can be inside a method at a time, which is the critical section solution from class.
 
 ---
 
-## Why synchronization matters here
+## Why this file is important for the class
 
-Multiple threads access this object at the same time. When Player 1 and Player 2 both answer correctly in the same instant, two different threads both try to call `addPoints()`. Without `synchronized`, this sequence can happen:
+This is the clearest example of a race condition in the whole project. When two players answer correctly at the same instant, two threads both try to add points at the same time.
 
-1. Thread 1 reads score = 100
-2. Thread 2 reads score = 100 (hasn't been updated yet)
-3. Thread 1 writes score = 200
-4. Thread 2 writes score = 200 (should be 300!)
+Without `synchronized`, this can happen:
 
-The `synchronized` keyword prevents this by letting only one thread into a method at a time. This is the same pattern as `Counter.java` from class.
+1. Thread A reads Player 1's score: 100
+2. Thread B reads Player 1's score: 100 (before Thread A wrote anything)
+3. Thread A adds 10, writes 110
+4. Thread B adds 10, writes 110 — **wrong, should be 120**
+
+The `synchronized` keyword makes only one thread run the method at a time, so this can never happen. It's the same concept as the `Counter.java` example from class.
 
 ---
 
 ## Fields
 
-- `HashMap<String, Integer> scores` — maps player names to their point totals
+- `HashMap<String, Integer> scores` — stores player name → their score
 
 ---
 
 ## Methods
 
-Every method below must be `synchronized`.
+All methods must be `synchronized`.
 
-### `addPlayer(String name)`
-- Adds a new entry to the HashMap with a score of 0
-- Called by `GameServer.onMessage()` when a `join` message arrives
+### `addPlayer(name)`
+- Adds the player to the map with a starting score of 0
+- Called by GameServer when a player joins
 
-### `addPoints(String name, int points)`
-- Reads the current score, adds points, writes it back
-- Called by `GameServer.onMessage()` when a correct answer is detected
-- This is the method where the race condition would occur without `synchronized`
+### `addPoints(name, points)`
+- Adds points to a player's score
+- Called by GameServer when a player answers correctly (10 points per correct answer)
+- This is where the race condition would happen without `synchronized`
 
-### `getScore(String name)`
-- Returns the current score for one player
+### `getScore(name)`
+- Returns one player's current score
+- Called by GameServer to include in the answer feedback message
 
 ### `playerCount()`
-- Returns `scores.size()`
-- Called by `GameLoop` to check if enough players have joined
+- Returns how many players are in the game
+- Called by GameLoop to check if everyone has answered (to end the round early)
 
 ### `snapshot()`
-- Returns a copy of the entire scores HashMap (or its string/JSON representation)
-- Called by `GameLoop` when broadcasting `round_end` results
-- Must be synchronized so we don't read scores mid-update
+- Returns a copy of the full scores map
+- Called by GameLoop when sending round results and the final game over message
+- Needs `synchronized` so the copy doesn't happen while someone else is updating scores
 
 ### `winner()`
-- Loops through the HashMap and returns the name + score of the highest scorer
-- Called by `GameLoop` when broadcasting `game_over`
+- Returns the name of the player with the highest score
+- Called by GameLoop for the game over message
 
 ---
 
-## How to test it alone
+## How to test it by itself
 
-Write a temporary `main()` method inside this class:
+1. Create a `Scoreboard`
+2. Add 4 players
+3. Spin up 4 threads, each calling `addPoints` 100 times for their player (10 points each call)
+4. Wait for all threads to finish
+5. Print the scores — every player should have exactly 1000 points, no exceptions
 
-1. Create a `Scoreboard` instance
-2. Call `addPlayer()` for 4 fake players
-3. Spin up 4 threads, each calling `addPoints(name, 10)` in a loop 100 times
-4. Join all threads
-5. Print `snapshot()`
-6. The total across all players should be exactly 4000 (4 players × 10 points × 100 loops)
-
-If the total is wrong, synchronization is broken. If it's exactly 4000 every time you run it, you're good.
-
-Delete the `main()` before integration in Phase 3.
+If the numbers are ever wrong, synchronization isn't working.

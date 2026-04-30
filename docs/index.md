@@ -1,139 +1,58 @@
 # index.html
 
-**Owner:** Person D
+**Owner:** Person B
 
-**What it is:** A single HTML file containing all CSS and JavaScript inline. This is what players see on their phone. No frameworks, no build tools — just one file.
+**What it does:** This is what players see on their phone when they scan the QR code. It connects to the server over WebSocket and shows the right screen depending on what's happening in the game.
 
-**OS concepts:** Asynchronous event-driven architecture (the WebSocket listener is a callback that fires whenever the server pushes a message).
-
----
-
-## How it works
-
-The page opens a WebSocket connection to the Java server. All communication happens through `ws.send()` (client → server) and `ws.onmessage` (server → client). The page never refreshes — JavaScript shows and hides different screens based on what message type arrives.
+**Your job:** The game logic is already fully built and working. All you need to do is make it look good — add CSS, style the buttons, pick colors, whatever makes it feel like a real quiz game.
 
 ---
 
-## Connection setup
+## How it connects to the server
 
-```javascript
-const ws = new WebSocket("ws://<server-ip>:8080");
-
-ws.onopen = function() {
-    // Connected — show the join screen
-};
-
-ws.onmessage = function(event) {
-    const msg = JSON.parse(event.data);
-    // Route based on msg.type
-};
-
-ws.onclose = function() {
-    // Show a "disconnected" message
-};
-```
-
-The server IP will need to be configurable — either hardcoded for testing (`localhost`) or entered by the player on a setup screen.
+The page automatically connects to the server using the same IP address the player used to load the page. So if the player loaded the page from `http://192.168.1.5:8081`, it connects to `ws://192.168.1.5:8080`. No hardcoding needed — it just works.
 
 ---
 
-## Screens
+## The five screens
 
-The page has five states. Only one is visible at a time. Use `display: none` / `display: block` to switch between them.
+Only one screen is visible at a time. The JS switches between them automatically based on messages from the server.
 
-### 1. Join screen
-- A text input for the player's name
-- A "Join" button
-- On tap: send `{"type":"join","data":{"name":"..."}}`
-- Shows while waiting for a `welcome` response
+### 1. Join screen (`screen-join`)
+- A text box for the player's name and a Join button
+- Already wired up — pressing the button (or hitting Enter) sends the join message
 
-### 2. Waiting screen
-- Shows: "Waiting for players... 3 / 6"
-- Updates every time a `waiting` message arrives
-- Transitions to the question screen when a `question` message arrives
+### 2. Waiting screen (`screen-waiting`)
+- Shows while the game hasn't started yet
+- Updates with the current player count as people join
+- Changes to "Game starting with N players..." when the host presses Start
 
-### 3. Question screen
-- Displays the question text at the top
-- Four large, colored answer buttons (A, B, C, D)
-- A countdown timer (starts at 20, decreases each second)
-- On button tap: send `{"type":"answer","data":{"questionId":...,"choice":"A"}}`
-- After tapping, disable all buttons (prevent double-submit)
-- Timer updates come from `timer` messages from the server
+### 3. Question screen (`screen-question`)
+- Shows the question and four answer buttons (A, B, C, D)
+- Has a countdown timer that ticks down from 20 on its own (client-side)
+- Buttons disable themselves after the player taps one, or when time runs out
+- Shows "Correct! Your score: X" or "Wrong. Your score: X" after the server responds
 
-### 4. Results screen
-- Shows the correct answer (highlight it in green)
-- Shows the current scoreboard (list of names + scores, sorted highest first)
-- Visible for 3 seconds, then transitions back to the question screen for the next round
-- Triggered by a `round_end` message
+### 4. Round end screen (`screen-round-end`)
+- Shows what the correct answer was
+- Shows the current scores sorted from highest to lowest
+- The player's own row is marked with "(you)"
+- Automatically moves to the next question when the server sends one
 
-### 5. Game over screen
-- Shows the winner's name prominently
-- Shows the final scoreboard
-- Triggered by a `game_over` message
+### 5. Game over screen (`screen-game-over`)
+- Shows the winner
+- Shows the final scores
+- Has a Play Again button that reloads the page
 
 ---
 
-## Messages this file sends
+## What to style
 
-| When | What to send |
-|---|---|
-| Player taps "Join" | `{"type":"join","data":{"name":"Jonas"}}` |
-| Player taps an answer | `{"type":"answer","data":{"questionId":1,"choice":"B"}}` |
+Everything is plain unstyled HTML right now. You're free to add whatever CSS you want. Some ideas:
 
----
+- Big colorful answer buttons (classic quiz game style)
+- A bold, easy-to-read timer
+- A clean scoreboard layout
+- Mobile-friendly sizing so everything fits on a phone screen without scrolling
 
-## Messages this file receives and how to handle them
-
-| Type | Action |
-|---|---|
-| `welcome` | Switch from join screen to waiting screen |
-| `waiting` | Update the player count display |
-| `question` | Switch to question screen, populate question text and choices, start timer at 20 |
-| `timer` | Update the countdown display |
-| `round_end` | Switch to results screen, highlight correct answer, show scores |
-| `game_over` | Switch to game over screen, show winner and final scores |
-
----
-
-## Design guidelines
-
-- **Mobile-first.** Most players will be on phones. Design for a small vertical screen.
-- **Big buttons.** Answer buttons should be at least 48px tall with plenty of padding. Players are tapping quickly.
-- **Distinct colors per choice.** Classic Kahoot uses red/blue/yellow/green for A/B/C/D.
-- **Readable timer.** Large font, centered, maybe a progress bar that shrinks.
-- **No scrolling.** Everything should fit on one screen without scrolling.
-- **Keep it simple.** This is a demo, not a production app. Clean and functional beats fancy.
-
----
-
-## How to test it alone
-
-You don't need the real server to build and test the UI.
-
-1. Open the HTML file directly in a browser
-2. In the browser's developer console, simulate incoming messages:
-
-```javascript
-// Simulate a welcome message
-handleMessage({ type: "welcome", data: { name: "TestPlayer" } });
-
-// Simulate a question
-handleMessage({ type: "question", data: {
-    id: 1,
-    text: "What prevents race conditions?",
-    choiceA: "Sockets",
-    choiceB: "Synchronization",
-    choiceC: "Deadlock",
-    choiceD: "Paging"
-}});
-
-// Simulate round end
-handleMessage({ type: "round_end", data: {
-    correct: "B",
-    scores: { "TestPlayer": 100, "OtherPlayer": 0 }
-}});
-```
-
-Structure your code so `handleMessage(msg)` is a standalone function that you call both from `ws.onmessage` and from the console during testing.
-
-Delete the test helpers before integration in Phase 3.
+**One thing to be careful about:** the JS finds elements by their `id` (like `document.getElementById("choiceA")`). Don't rename any of the existing IDs or the buttons will stop working. You can add classes, change the HTML structure around them, wrap them in new divs — just keep the IDs the same.

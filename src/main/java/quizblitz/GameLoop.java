@@ -1,181 +1,161 @@
 package quizblitz;
 
-import java.util.List;
-import java.util.ArrayList;
+import org.json.JSONObject;
 
 
 public class GameLoop implements Runnable {
-	
-	// A variable to track player count & individual scores 
-	private Scoreboard scoreboard;
-	
-	// A variable of holding all quiz questions
+
+	// shared scoreboard and question list passed in from GameServer
+	private Scoreboard   scoreboard;
 	private QuestionBank questionBank;
-	
-	// A variable to current
-	private Question currentQuestion;
+
+	// the question currently being asked — volatile so all threads see the latest value
+	private volatile Question currentQuestion;
 	private volatile int currentQuestionId;
-	
-	private static int MIN_PLAYERS = 2;
-	private static int ROUND_SECONDS = 20;
-	private static int BREAK_SECONDS = 3;
-	
+
+	// tracks how many players have answered this round
+	// not volatile — protected by synchronized on recordAnswer() and getAnswersThisRound()
+	// because ++ is a read-modify-write and not atomic on its own
+	private int answersThisRound = 0;
+
+	// flipped to true when the host presses Start Game
+	private volatile boolean gameStarted = false;
+
+	static final int MIN_PLAYERS           = 2;  // package-accessible so GameServer can use it
+	private static final int ROUND_SECONDS = 20;
+	private static final int BREAK_SECONDS = 3;
+
+	// reference to the server so we can broadcast messages to all clients
 	private GameServer server;
-	
-	// Temporary class for scoreboard file
-	public static class Scoreboard {
-		
-		private int count = 0;
-		
-		public void addPlayer(String name) {
-			count++;
-		}
-		
-		public int playerCount() {
-			return count;
-		}
 
-		public String snapshot() {
-			return "{}";
-		}
-
-		public String winner() {
-			return "Alice";
-		}
-	}
-	
-	// Temporary class for question file
-	public static class Question {
-		private int id;
-		private String correct;
-
-		public Question(int id, String correct) {
-			this.id = id;
-		    this.correct = correct;
-		}
-
-		public int getId() {
-			return id; 
-		}
-		public String getCorrect() {
-			return correct;
-		}
-	}
-		
-	// Temporary file for questionBank file
-	public static class QuestionBank {
-		public List<Question> getAll() {
-			List<Question> questions = new ArrayList<>();
-		    questions.add(new Question(1, "A"));
-		    questions.add(new Question(2, "B"));
-		    questions.add(new Question(3, "C"));
-		    return questions;
-		}
-	}
-	
-	// GameLoop Constructor
+	// constructor — takes the shared scoreboard and question bank from GameServer
 	public GameLoop(Scoreboard scoreboard, QuestionBank questionBank) {
-		this.scoreboard = scoreboard;
+		this.scoreboard   = scoreboard;
 		this.questionBank = questionBank;
 	}
-	
-	// A function to 
+
+	// called once during setup so the game loop can send broadcasts
 	public void setBroadcaster(GameServer server) {
 		this.server = server;
 	}
-	
-	// A function to return the current active question ID
-	// Volatile read - always returns the most up-to-date value
+
 	public int getCurrentQuestionId() {
 		return currentQuestionId;
 	}
-	
-	// A function to be called by GameServer.onMessages when a player submits an answer
+
+	// called by GameServer when a player submits an answer
+	// returns true only if the round is still open and the answer matches
 	public boolean checkAnswer(int questionId, String choice) {
-		
-		// if statement to determine if the round is still going on and the quiz question still exists
-		if(questionId == currentQuestionId && currentQuestion != null) {
-			
-			// If/else statements to determine if the answer matches the correct quiz answer
-			if(choice.equals(currentQuestion.getCorrect())) {
-				return true; // correct answer = true
-			} else {
-				return false; // wrong answer = false
-			}
-		} else {
-			return false; // The round is already over or there isn't anymore quiz questions
-		}
-		
+		return questionId == currentQuestionId
+			&& currentQuestion != null
+			&& choice.equals(currentQuestion.getCorrect());
 	}
-	
-	// The main game loop running function where all the threading will start
+
+	// called by GameServer when the host presses Start Game
+	public void startGame() {
+		gameStarted = true;
+	}
+
+	// called by GameServer each time a player submits any answer
+	// synchronized because two players answering at the same instant on different
+	// threads would both try to do ++ at the same time — without the lock, one count gets lost
+	public synchronized void recordAnswer(int questionId) {
+		if (questionId == currentQuestionId) {
+			answersThisRound++;
+		}
+	}
+
+	// reading answersThisRound also needs the same lock used in recordAnswer()
+	// so the game loop thread doesn't read a stale value mid-write
+	private synchronized int getAnswersThisRound() {
+		return answersThisRound;
+	}
+
+	// helper to sleep — returns false if the thread is interrupted so run() can exit cleanly
+	private boolean sleep(long ms) {
+		try {
+			Thread.sleep(ms);
+			return true;
+		} catch (InterruptedException e) {
+			return false;
+		}
+	}
+
+	// main game loop — runs on its own thread, controls all round timing
 	@Override
 	public void run() {
-		
-		// Step 1: Wait until enough players have joined
-		while(scoreboard.playerCount() < MIN_PLAYERS) {
-			// server.broadcastToAll("{\"type\":\"waiting\"}");
-			System.out.println("BROADCAST: waiting");
-			
-            try { 
-            	Thread.sleep(1000); // check again every second
-            } 
-            catch (InterruptedException e) {
-            	return;  // Stopping the thread if it's interrupted
-            }
-		}
-		
-		// Step 2: Play through each question in question bank
-		for(Question q : questionBank.getAll()) {
-			
-			// Set the current question so checkAnswer() can validate the answers
-			currentQuestion = q;
-			currentQuestionId = q.getId();
-			
-			// Broadcasting the question round to all players
-			// server.broadcastToAll("{\"type\":\"question\"}");
-			System.out.println("BROADCAST: question");
 
-			// Waiting for the round time duration
-			try {
-				Thread.sleep(ROUND_SECONDS * 1000); 
-			} 
-			catch (InterruptedException e) {
-				return;  // Stopping the thread if it's interrupted
+		// keep broadcasting "waiting" every second until the host presses Start
+		while (!gameStarted) {
+			server.broadcastToAll(new JSONObject()
+				.put("type", "waiting")
+				.put("data", new JSONObject()
+					.put("count",  scoreboard.playerCount())
+					.put("needed", MIN_PLAYERS))
+				.toString());
+			System.out.println("BROADCAST: waiting");
+			if (!sleep(1000)) return;
+		}
+
+		// loop through every question in the bank
+		for (Question q : questionBank.getAll()) {
+
+			// set the current question so checkAnswer() and recordAnswer() know what round we're in
+			currentQuestion   = q;
+			currentQuestionId = q.getId();
+			answersThisRound  = 0;
+
+			// send the question to all players
+			server.broadcastToAll(new JSONObject()
+				.put("type", "question")
+				.put("data", new JSONObject(currentQuestion.toJSON()))
+				.toString());
+			System.out.println("BROADCAST: question " + currentQuestionId);
+
+			// wait up to ROUND_SECONDS, but exit early if everyone has answered
+			long deadline = System.currentTimeMillis() + ROUND_SECONDS * 1000L;
+			while (System.currentTimeMillis() < deadline
+				   && getAnswersThisRound() < scoreboard.playerCount()) {
+				if (!sleep(200)) return;
 			}
-			
-			// Set the currentQuestionId to reject late answers or that arrive after time runs out
+
+			// set to -1 so any late answers from this round get rejected
 			currentQuestionId = -1;
-			
-			
-			// Broadcasting the results of the round to all players
-			// server.broadcastToAll("{\"type\":\"round_end\"}");
+
+			// send the correct answer and updated scores to everyone
+			server.broadcastToAll(new JSONObject()
+				.put("type", "round_end")
+				.put("data", new JSONObject()
+					.put("correct", currentQuestion.getCorrect())
+					.put("scores",  new JSONObject(scoreboard.snapshot())))
+				.toString());
 			System.out.println("BROADCAST: round_end");
 
-			// Creating the short time break before transitioning to the next question
-            try {
-            	Thread.sleep(BREAK_SECONDS * 1000); 
-            } 
-            catch (InterruptedException e) {
-            	return; // Stopping the thread if it's interrupted
-            }
+			// short break before the next question
+			if (!sleep(BREAK_SECONDS * 1000L)) return;
 		}
-		
-		// Step 3: Broadcasting the final results of each player
-		// server.broadcastToAll("{\"type\":\"game_over\"}");
+
+		// all questions done — send final results
+		server.broadcastToAll(new JSONObject()
+			.put("type", "game_over")
+			.put("data", new JSONObject()
+				.put("winner",      scoreboard.winner())
+				.put("finalScores", new JSONObject(scoreboard.snapshot())))
+			.toString());
 		System.out.println("BROADCAST: game_over");
 	}
-	
+
+	// quick test entry point — runs the loop with fake players, no real server needed
 	public static void main(String[] args) {
-	    Scoreboard scoreboard = new Scoreboard();
-	    scoreboard.addPlayer("Bob");
-	    scoreboard.addPlayer("Alice");
-	    scoreboard.addPlayer("Charlie");
+		Scoreboard   scoreboard   = new Scoreboard();
+		scoreboard.addPlayer("Bob");
+		scoreboard.addPlayer("Alice");
+		scoreboard.addPlayer("Charlie");
 
-	    QuestionBank questionBank = new QuestionBank();
-	    GameLoop gameLoop = new GameLoop(scoreboard, questionBank);
+		QuestionBank questionBank = new QuestionBank();
+		GameLoop     gameLoop     = new GameLoop(scoreboard, questionBank);
 
-	    new Thread(gameLoop).start();
+		new Thread(gameLoop).start();
 	}
-	
+
 }

@@ -1,103 +1,105 @@
 # GameServer.java
 
-**Owner:** Person B
+**Owner:** Person A
 
-**What it is:** The entry point of the application. Extends `WebSocketServer` from the Java-WebSocket library. Starts the server, handles client connections, parses incoming messages, and routes them to `Scoreboard` and `GameLoop`.
+**What it does:** This is the main file that runs the server. It listens for players connecting over WebSocket (port 8080), reads their messages, and figures out what to do with them. It also runs a small web server (port 8081) so players can load the game page in their browser by scanning a QR code.
 
-**OS concepts:** Sockets, I/O, network communication.
-
----
-
-## How it works
-
-The Java-WebSocket library gives you a class called `WebSocketServer`. You extend it and fill in four callback methods. The library handles threading for you — each client connection gets its own thread internally.
-
-This replaces what `ServerSocket.accept()` + `ClientHandler implements Runnable` did in the Mailbox assignment. Same idea, the library just manages the threads behind the scenes.
+**OS concepts covered:** Sockets/Processes — the server opens a socket on port 8080 and accepts one connection per player, the same model covered in class. Threads — the WebSocket library creates a new thread for each connected client, so multiple players can send messages at the same time without blocking each other.
 
 ---
 
-## Fields
+## The basic idea
 
-- `Scoreboard scoreboard` — the single shared instance, created in `main()`
-- `GameLoop gameLoop` — the game engine, also created in `main()`
-- `Map<WebSocket, String> playerConnections` — maps each WebSocket connection to the player's name
+Think of this file as a traffic cop. Players send messages like "I want to join" or "my answer is B", and this file reads those messages and passes them to the right place — either the scoreboard or the game loop.
 
----
-
-## Callbacks (provided by the library, you write the logic)
-
-### `onOpen(WebSocket conn, ClientHandshake handshake)`
-- A new client just connected
-- Log it: `System.out.println("New connection from " + conn.getRemoteSocketAddress())`
-- Don't add them as a player yet — wait for their `join` message
-
-### `onMessage(WebSocket conn, String message)`
-- A client sent a message (JSON string)
-- Parse the JSON to get `type` and `data`
-- If `type` is `"join"`:
-    - Extract `name` from `data`
-    - Call `scoreboard.addPlayer(name)`
-    - Store the mapping: `playerConnections.put(conn, name)`
-    - Send back: `{"type":"welcome","data":{"name":"..."}}`
-    - Broadcast updated waiting count to all clients
-- If `type` is `"answer"`:
-    - Extract `questionId` and `choice` from `data`
-    - Look up the player name from `playerConnections`
-    - Call `gameLoop.checkAnswer(questionId, choice)`
-    - If correct: call `scoreboard.addPoints(name, 100)`
-
-### `onClose(WebSocket conn, int code, String reason, boolean remote)`
-- A client disconnected
-- Remove them from `playerConnections`
-- Log it
-
-### `onError(WebSocket conn, Exception ex)`
-- Something went wrong
-- Print the error: `ex.printStackTrace()`
+The WebSocket library takes care of the low-level networking. You just fill in four callback methods that get called automatically when something happens.
 
 ---
 
-## Methods
+## Fields (the data it keeps track of)
 
-### `main(String[] args)`
-1. Create a `Scoreboard` instance
-2. Create a `QuestionBank` instance
-3. Create a `GameLoop` instance, passing it the scoreboard and question bank
-4. Start the game loop on its own thread: `new Thread(gameLoop).start()`
-5. Create `GameServer` instance on port 8080, passing scoreboard and game loop
-6. Call `server.start()`
-7. Print the server URL and local IP so players know where to connect
-
-### `broadcastToAll(String message)`
-- Sends a JSON string to every connected client
-- Called by `GameLoop` to push questions, timer updates, round results, and game over
-- Use the library's `broadcast()` method or loop through all connections
-
-### (Optional) `startHttpServer()`
-- Start a simple HTTP server on port 8081 using `com.sun.net.httpserver.HttpServer`
-- Serves `index.html` so players can access it by navigating to `http://<your-ip>:8081`
-- About 15 lines of code — makes the QR code flow work
+- `scoreboard` — the shared scoreboard object, created once and used by both this file and GameLoop
+- `gameLoop` — the game engine that controls rounds and timing
+- `playerNames` — a map of each connected player to their name. Uses `ConcurrentHashMap` because multiple threads can add/remove players at the same time
+- `localIp` — the laptop's IP address on the local network, used to build the QR code URL
 
 ---
 
-## JSON parsing
+## The four callbacks
 
-You can parse JSON manually (split strings) or use a small library. The simplest approach without extra dependencies:
+These methods are called automatically by the WebSocket library — you don't call them yourself.
 
-- `org.json` is a lightweight option (one more jar)
-- Or use basic string manipulation since our messages are simple
+### `onOpen` — a new player connected
+- Sends them the game URL (so the display page can show the QR code)
+- Sends the current player list (so a display page that joins late can catch up)
+- Doesn't add them as a player yet — waits for them to send a join message
 
-Pick whichever the team is comfortable with. Just make sure the key names match the protocol in the README exactly.
+### `onMessage` — a player sent a message
+- Parses the JSON to figure out what type of message it is
+- Routes it to `handleJoin`, `handleAnswer`, or `handleStartGame`
+- Sends back an error if the message doesn't make sense
+
+### `onClose` — a player disconnected
+- Removes them from the player map
+- Broadcasts the updated player list to everyone else
+
+### `onError` — something went wrong
+- Prints the error so you can see it in the console
 
 ---
 
-## How to test it alone
+## Message handlers
 
-1. Use the Phase 1 skeleton `index.html`
-2. Run the server
-3. Open the HTML in a browser
-4. Send raw JSON messages from the browser console: `ws.send('{"type":"join","data":{"name":"Test"}}')`
-5. Check your server console — you should see the parsed name printed
-6. Use a stub Scoreboard that just prints "addPlayer called" instead of actually storing data
+### `handleJoin` — player wants to join
+- Makes sure they sent a name
+- Adds them to the scoreboard and the player map
+- Sends them a welcome message
+- Broadcasts the updated player list to everyone
 
-Delete the stubs before integration in Phase 3.
+### `handleAnswer` — player submitted an answer
+- Checks if their answer is correct by asking the game loop
+- Awards 10 points if correct
+- Tells the game loop that one more player has answered (so the round can end early)
+- Sends the player feedback (right/wrong + their current score)
+
+### `handleStartGame` — host pressed Start Game
+- Checks that at least 2 players have joined
+- Tells the game loop to start
+- Broadcasts a "game is starting" message to everyone
+
+---
+
+## Helper methods
+
+- `buildMessage(type, data)` — builds a standard JSON message so every sender uses the same format
+- `buildPlayerListJson()` — builds the player list message from whoever is currently connected
+- `sendError(conn, reason)` — sends an error message back to one player
+- `broadcastToAll(message)` — sends a message to every connected client. GameLoop calls this to push questions and results
+- `startHttpServer()` — starts the web server that serves index.html and display.html
+- `send404(exchange)` — sends a "not found" response when someone requests a page that doesn't exist
+- `getLocalIp()` — finds the laptop's IP address on the WiFi network
+
+---
+
+## Messages (the JSON protocol)
+
+### Player → Server
+
+| Type | Data | When |
+|---|---|---|
+| `join` | `{"name":"Alice"}` | Player taps Join |
+| `answer` | `{"questionId":1,"choice":"B"}` | Player taps an answer |
+| `start_game` | *(none)* | Host presses Start Game |
+
+### Server → Player (sent from this file)
+
+| Type | Data | When |
+|---|---|---|
+| `server_info` | `{"gameUrl":"http://..."}` | When anyone connects |
+| `player_list` | `{"players":[...],"count":2}` | When someone joins or leaves |
+| `welcome` | `{"name":"Alice"}` | After a successful join |
+| `answer_result` | `{"correct":true,"score":10}` | After each answer |
+| `game_starting` | `{"playerCount":3}` | When the game starts |
+| `error` | *(message)* | When something goes wrong |
+
+*(The question, round results, and game over messages are sent by GameLoop, not this file)*

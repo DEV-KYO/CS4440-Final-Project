@@ -1,36 +1,34 @@
-# Setup checklist
+# Setup
 
-This project uses **Maven** to manage dependencies. You don't need to download any JARs manually — Maven handles that automatically when you import the project.
-
-Follow these steps in order. If you get stuck, ask in the group chat before moving on.
+Follow these steps in order. If something isn't working, check the troubleshooting section at the bottom before asking in the group chat.
 
 ---
 
-## 1. Install Java JDK 17+
+## 1. Make sure Java is installed
 
-Check if you already have it:
+Open a terminal and run:
 
 ```
 java -version
 javac -version
 ```
 
-Both should report 17 or higher. If not installed:
+Both should say version 17 or higher. If not installed:
 
-- **Windows / Mac:** Download from [Adoptium](https://adoptium.net/) (recommended) or [Oracle](https://www.oracle.com/java/technologies/downloads/)
+- **Windows / Mac:** Download from [Adoptium](https://adoptium.net/) (free, recommended)
 - **Linux / WSL:** `sudo apt update && sudo apt install openjdk-17-jdk`
 
 ---
 
 ## 2. Install Eclipse
 
-Download from [eclipse.org](https://www.eclipse.org/downloads/). Use **"Eclipse IDE for Java Developers"** — Maven support (m2e) is built in, so you don't need any extra plugins.
+Download from [eclipse.org/downloads](https://www.eclipse.org/downloads/). Pick **"Eclipse IDE for Java Developers"** — Maven support is already included in that version, so you don't need extra plugins.
 
 ---
 
 ## 3. Install Git
 
-Check if you already have it:
+Check if you have it:
 
 ```
 git --version
@@ -43,66 +41,96 @@ If not, download from [git-scm.com](https://git-scm.com/).
 ## 4. Clone the repo
 
 ```
-gh repo clone DEV-KYO/CS4440-Final-Project
-```
-
-Or with plain git:
-
-```
 git clone https://github.com/DEV-KYO/CS4440-Final-Project.git
 ```
 
 ---
 
-## 5. Import into Eclipse as a Maven project
+## 5. Import into Eclipse
 
 1. Open Eclipse
-2. **File → Import → Maven → Existing Maven Projects** (NOT "Existing Projects into Workspace" — that's the old way)
-3. Browse to the cloned `CS4440-Final-Project` folder
-4. Eclipse should detect `pom.xml` automatically — make sure the checkbox next to it is checked
+2. Go to **File → Import → Maven → Existing Maven Projects**
+   - (Not "Existing Projects into Workspace" — that's the old way and won't work with Maven)
+3. Browse to the `CS4440-Final-Project` folder you just cloned
+4. Eclipse will detect `pom.xml` automatically — make sure the checkbox next to it is checked
 5. Click **Finish**
 
-Eclipse will spend a minute downloading the WebSocket library and the JSON library on the first import. You'll see progress in the bottom-right corner. Wait for it to finish before moving on.
+Eclipse will spend about a minute downloading the WebSocket and JSON libraries the first time. You'll see a progress bar in the bottom-right corner. Wait for it to finish before doing anything else.
 
 ---
 
-## 6. Verify it builds
+## 6. Verify it looks right
 
-In Eclipse's Package Explorer, you should see:
+In the Package Explorer on the left you should see:
 
-- `src/main/java` — where your `.java` files live (in the `quizblitz` package)
-- `src/main/resources` — for `index.html` and any other static files
-- **Maven Dependencies** — a virtual folder showing the JARs Maven downloaded for you
+- `src/main/java` → the `quizblitz` package with the `.java` files
+- `src/main/resources/web` → `index.html` and `display.html`
+- `Maven Dependencies` → the downloaded libraries
 
-If you see red error markers on the project, right-click the project → **Maven → Update Project... → OK**. This re-syncs Eclipse with `pom.xml`.
+If you see red error markers, right-click the project → **Maven → Update Project → OK**. That usually fixes it.
 
 ---
 
 ## 7. Run the server
 
-Right-click `GameServer.java` → **Run As → Java Application**. You should see:
+Right-click `GameServer.java` → **Run As → Java Application**
+
+Or from the command line inside the project folder:
 
 ```
-Server started on port 8080
+mvn clean exec:java
 ```
 
-Or from the command line:
+You should see this printed in the console:
 
 ```
-mvn exec:java
+─────────────────────────────────────────
+  QuizBlitz server running!
+  Player page:  http://192.168.x.x:8081/
+  Display page: http://192.168.x.x:8081/display.html
+─────────────────────────────────────────
 ```
 
-Open `src/main/resources/web/index.html` in a browser. You should be able to connect.
+- Open the **Display page** on the laptop that's running the server — this is the host view with the QR code and Start Game button
+- Players scan the QR code (or type the Player page URL) to join from their phones
 
 ---
 
-## 8. If port 8080 is busy
+## 8. WiFi setup
 
-**Mac/Linux/WSL:**
+University WiFi blocks devices from talking to each other directly, so phones usually can't reach your laptop over it. The fix:
+
+1. Turn on a **phone hotspot** on one team member's phone
+2. Connect the **laptop** to that hotspot
+3. Connect all **player phones** to that same hotspot
+4. Restart the server — it'll print the new IP address for that network
+
+---
+
+## 9. Firewall (if phones can't connect)
+
+**Windows** — run this once in PowerShell as Administrator:
+
 ```
-lsof -i :8080
-kill -9 <PID>
+New-NetFirewallRule -DisplayName "QuizBlitz" -Direction Inbound -Protocol TCP -LocalPort 8080,8081 -Action Allow
 ```
+
+**Mac** — the firewall is off by default, so this usually isn't needed. If phones still can't connect after the hotspot setup, check if it's on:
+
+System Settings → Network → Firewall
+
+If it's on, click **Options** and add Java to the allowed apps, or temporarily turn the firewall off for the demo. Alternatively, run this in Terminal:
+
+```
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/bin/java
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/bin/java
+```
+
+---
+
+## 10. If port 8080 is already in use
+
+This happens if you ran the server before and it didn't shut down cleanly.
 
 **Windows:**
 ```
@@ -110,41 +138,29 @@ netstat -ano | findstr :8080
 taskkill /pid <PID> /F
 ```
 
----
-
-## 9. Find your local IP (for multiplayer testing)
-
-Other players' phones will connect to `ws://<your-ip>:8080`, so you need to know your IP on the local network.
-
-**Mac:**
+**Mac / Linux / WSL:**
 ```
-ipconfig getifaddr en0
+lsof -i :8080
+kill -9 <PID>
 ```
 
-**Linux / WSL:**
-```
-hostname -I | awk '{print $1}'
-```
-
-**Windows:**
-```
-ipconfig
-```
-
-Look for the IPv4 address under your Wi-Fi adapter (usually starts with `192.168`). All player devices must be on the same Wi-Fi network as the server.
+Replace `<PID>` with the number you see in the output.
 
 ---
 
 ## Troubleshooting
 
 **"Cannot resolve symbol org.java_websocket"**
-Maven hasn't finished downloading dependencies yet. Right-click project → Maven → Update Project. Wait for the progress bar in the bottom-right.
+Maven hasn't finished downloading yet. Right-click the project → Maven → Update Project. Wait for the progress bar to finish.
 
-**"Project is missing required source folder: src/main/java"**
-The folder structure isn't right. The repo should already have it set up correctly — try re-cloning.
+**Red error markers on the project**
+Right-click project → Maven → Update Project → OK. If that doesn't fix it, try closing and reopening Eclipse.
 
-**Eclipse doesn't show a "Maven" option under Import**
-You probably installed "Eclipse IDE for Enterprise Java" or a different package. Reinstall using "Eclipse IDE for Java Developers".
+**Eclipse doesn't show a Maven option under Import**
+You installed the wrong Eclipse package. Reinstall using "Eclipse IDE for Java Developers".
 
-**Port 8080 already in use after running once**
-Eclipse sometimes leaves processes running. Use the commands in step 8, or restart Eclipse.
+**Port 8080 already in use after running**
+Eclipse sometimes leaves the process running in the background. Use the commands in step 10, or just restart Eclipse.
+
+**Phones connect to the hotspot but still can't reach the server**
+Check that the firewall rule from step 9 was added. Also make sure you're using the IP address shown in the server console — it updates when you switch networks.

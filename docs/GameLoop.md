@@ -1,106 +1,76 @@
 # GameLoop.java
 
-**Owner:** Person C (also owns `Question.java` and `QuestionBank.java` — see `QuestionBank.md`)
+**Owner:** Person D
 
-**What it is:** The game engine. Implements `Runnable` and runs on its own dedicated thread. Controls when rounds start and end, manages the 20-second timer, and tells the server when to broadcast messages to all players.
+**What it does:** This is the game engine. It runs on its own thread and controls the flow of the game — waiting for the host to start, showing questions one at a time, tracking when everyone has answered, and ending the game when all questions are done.
 
-**OS concepts:** Multithreading (`implements Runnable`, `Thread.sleep`), inter-thread communication (`volatile`).
+**OS concepts covered:** Threads — the game loop runs on its own dedicated thread using `implements Runnable`, separate from the network threads. Process Synchronization — `volatile` is used for simple flags that multiple threads read, and `synchronized` is used for the answer counter where a read-modify-write operation requires mutual exclusion to prevent a race condition.
 
 ---
 
-## How it works
+## The basic idea
 
-The game loop follows this pattern:
+Think of this file as the game show host. It decides when to show the next question, how long players have to answer, and when to reveal the results. It runs on its own thread so the timing logic doesn't interfere with the network logic in GameServer.
+
+---
+
+## How the game flows
 
 ```
-Wait for enough players
+Wait for host to press Start Game
   ↓
 For each question:
-  → Set the current question
-  → Tell server to broadcast it
-  → Sleep 20 seconds
-  → Lock out late answers
-  → Tell server to broadcast results
-  → Sleep 3 seconds (break between rounds)
+  1. Send the question to all players
+  2. Wait up to 20 seconds (check every 200ms if everyone answered early)
+  3. Close the round so late answers don't count
+  4. Send the correct answer and current scores to everyone
+  5. Wait 3 seconds before the next question
   ↓
-Tell server to broadcast game over
+Send the final results and winner
 ```
-
-This runs entirely on its own thread. The main thread (GameServer) handles network I/O. This thread handles timing. They communicate through the shared `Scoreboard` and through a broadcaster reference.
 
 ---
 
-## Fields
+## Fields (the data it keeps track of)
 
-- `Scoreboard scoreboard` — the shared instance (passed in via constructor)
-- `QuestionBank questionBank` — the list of questions (passed in via constructor)
-- `Question currentQuestion` — the question currently being played
-- `volatile int currentQuestionId` — set to the question's ID during a round, set to -1 between rounds. Marked `volatile` so handler threads always read the latest value without needing `synchronized`.
-- A reference to the server's broadcast method (so the loop can push messages to all clients)
-- `int MIN_PLAYERS` — how many players needed to start (use 2 for testing, higher for the real demo)
-- `int ROUND_SECONDS` — 20
-- `int BREAK_SECONDS` — 3
+- `scoreboard` — the shared scoreboard (same object that GameServer uses)
+- `questionBank` — the list of all questions
+- `currentQuestion` — the question being asked right now (marked `volatile` so all threads see the latest value)
+- `currentQuestionId` — the ID of the current question. Set to -1 between rounds to reject late answers. Marked `volatile` for the same reason
+- `answersThisRound` — how many players have submitted an answer this round. Protected by `synchronized` because multiple players can answer at the same time
+- `gameStarted` — starts as false, flipped to true when the host presses Start. Marked `volatile` so the waiting loop sees the change immediately
+- `MIN_PLAYERS = 2` — minimum players needed to start (also used by GameServer)
 
 ---
 
 ## Methods
 
-### Constructor
-- Takes a `Scoreboard` and a `QuestionBank`
-- Stores both as instance fields
+### `startGame()`
+- Flips `gameStarted` to true
+- Called by GameServer when the host presses the Start Game button
+
+### `checkAnswer(questionId, choice)`
+- Returns true if the answer is correct AND the round is still active
+- Called by GameServer when a player submits an answer
+- The `questionId` check prevents late answers from a finished round from counting
+
+### `recordAnswer(questionId)` — synchronized
+- Adds 1 to `answersThisRound` if the round is still active
+- **Why synchronized?** The `++` operation is actually three steps: read the value, add 1, write it back. If two players answer at the exact same instant on two different threads, both threads could read the same value, both add 1, and both write the same result — meaning one answer gets lost. `synchronized` prevents two threads from doing this at the same time.
+
+### `getAnswersThisRound()` — private, synchronized
+- Safely reads `answersThisRound` from the game loop thread
+- Has to be `synchronized` for the same reason as `recordAnswer` — reading and writing need to use the same lock
 
 ### `run()`
-This is the main game loop. It runs when the thread starts.
-
-1. **Wait for players:** Loop until `scoreboard.playerCount() >= MIN_PLAYERS`. On each loop iteration, broadcast a `waiting` message and sleep for 1 second.
-2. **Play rounds:** For each `Question` in the question bank:
-    - Set `currentQuestion` and `currentQuestionId`
-    - Broadcast a `question` message with the question data
-    - Sleep for `ROUND_SECONDS * 1000` milliseconds
-    - Set `currentQuestionId = -1` (this rejects any answers that arrive after time runs out)
-    - Broadcast a `round_end` message with the correct answer and `scoreboard.snapshot()`
-    - Sleep for `BREAK_SECONDS * 1000` milliseconds
-3. **End game:** Broadcast a `game_over` message with `scoreboard.winner()`
-
-### `checkAnswer(int questionId, String choice)`
-- Called by `GameServer.onMessage()` when a player submits an answer
-- Returns `true` only if:
-    - `questionId` matches `currentQuestionId` (the round is still active)
-    - `choice` matches `currentQuestion.getCorrect()`
-- Returns `false` otherwise (wrong answer or late submission)
-
-### `getCurrentQuestionId()`
-- Returns `currentQuestionId`
-- This is a `volatile` read — always returns the most up-to-date value
-
-### `setBroadcaster(...)`
-- Accepts a way to call `GameServer.broadcastToAll()` from within the game loop
-- This could be a direct reference to the server, a callback interface, or a lambda
-- Called once during setup in `GameServer.main()`
+- The main game loop (called automatically when the thread starts)
+- See the flow diagram above
 
 ---
 
-## About `volatile`
+## `volatile` vs `synchronized` — what's the difference?
 
-`volatile` is simpler than `synchronized`. It only works for single variable reads and writes (not read-modify-write like score updates). It's perfect for `currentQuestionId` because:
-- One thread writes it (the game loop)
-- Many threads read it (the connection handlers checking if an answer is still valid)
-- No math is involved — just "is it equal to X?"
+Both are tools for process synchronization, the topic from class — they just solve different parts of the problem.
 
-If `volatile` feels unfamiliar, you can replace it with a `synchronized` getter and setter. Same result, just slightly more code.
-
----
-
-## How to test it alone
-
-Write a temporary `main()` method:
-
-1. Create a real `Scoreboard` instance
-2. Call `scoreboard.addPlayer()` for 3 fake players
-3. Create a `QuestionBank` with 2-3 hardcoded questions
-4. Create a `GameLoop`, passing the scoreboard and question bank
-5. Replace the broadcaster with a simple `System.out.println` call
-6. Run the game loop on a new thread: `new Thread(gameLoop).start()`
-7. Watch the console — you should see `question` messages appearing every 23 seconds (20 round + 3 break)
-
-Delete the `main()` before integration in Phase 3.
+- **`volatile`** is for simple flags where one thread writes and others only read. Good for `gameStarted` and `currentQuestionId` — no math involved, just "has this value changed?"
+- **`synchronized`** is for critical sections where a thread needs to read, modify, and write a value as one uninterrupted unit. Required for `answersThisRound` because `++` is three operations under the hood. Without the lock, two threads can interleave and you get the race condition example from class — both threads read the same value, both add 1, one update disappears.

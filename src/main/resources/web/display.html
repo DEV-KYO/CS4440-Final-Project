@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QuizBlitz — Host Display</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+<h1>QuizBlitz — Host Display</h1>
+
+<hr>
+
+<h2>Join the game</h2>
+<div id="qrcode"></div>
+<p>URL: <span id="game-url">Connecting...</span></p>
+
+<hr>
+
+<h2>Players (<span id="player-count">0</span>)</h2>
+<ul id="player-list"></ul>
+
+<button id="start-btn" disabled>Start Game (need 2+ players)</button>
+<p id="start-msg"></p>
+
+<hr>
+
+<h2>Game State</h2>
+
+<div id="state-waiting">
+  <p>Waiting for host to press Start Game...</p>
+</div>
+
+<div id="state-question" style="display:none">
+  <p><strong>Question <span id="q-number"></span></strong></p>
+  <p id="q-text"></p>
+  <ul>
+    <li id="ans-A"></li>
+    <li id="ans-B"></li>
+    <li id="ans-C"></li>
+    <li id="ans-D"></li>
+  </ul>
+</div>
+
+<div id="state-round-end" style="display:none">
+  <p><strong>Round Over</strong></p>
+  <p>Correct answer: <strong id="correct-answer"></strong></p>
+  <table border="1" id="score-table">
+    <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
+    <tbody id="score-rows"></tbody>
+  </table>
+</div>
+
+<div id="state-game-over" style="display:none">
+  <p><strong>Game Over!</strong></p>
+  <p>Winner: <strong id="winner-name"></strong></p>
+  <table border="1" id="final-table">
+    <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
+    <tbody id="final-rows"></tbody>
+  </table>
+</div>
+
+<script>
+  // ── WebSocket ─────────────────────────────────────────────────────────
+  const host = window.location.hostname || "localhost";
+  const ws   = new WebSocket(`ws://${host}:8080`);
+
+  let qrGenerated = false;
+
+  ws.onopen  = () => console.log("Host display connected");
+  ws.onerror = () => alert("Cannot connect to server — is it running?");
+
+  ws.onmessage = function (event) {
+    let msg;
+    try { msg = JSON.parse(event.data); }
+    catch (e) { return; }
+
+    const type = msg.type;
+    const data = msg.data || {};
+
+    switch (type) {
+      case "server_info":   handleServerInfo(data);  break;
+      case "player_list":   handlePlayerList(data);  break;
+      case "waiting":       handleWaiting(data);     break;
+      case "game_starting": handleGameStarting(data);break;
+      case "question":      handleQuestion(data);    break;
+      case "round_end":     handleRoundEnd(data);    break;
+      case "game_over":     handleGameOver(data);    break;
+    }
+  };
+
+  // ── Start Game button ─────────────────────────────────────────────────
+  document.getElementById("start-btn").addEventListener("click", function () {
+    ws.send(JSON.stringify({ type: "start_game" }));
+    this.disabled   = true;
+    this.textContent = "Starting...";
+  });
+
+  // ── Handlers ──────────────────────────────────────────────────────────
+  function handleServerInfo(data) {
+    if (!data.gameUrl || qrGenerated) return;
+    qrGenerated = true;
+
+    document.getElementById("game-url").textContent = data.gameUrl;
+
+    new QRCode(document.getElementById("qrcode"), {
+      text: data.gameUrl,
+      width: 200,
+      height: 200,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
+  function handlePlayerList(data) {
+    const players = data.players || [];
+    document.getElementById("player-count").textContent = players.length;
+
+    const list = document.getElementById("player-list");
+    list.innerHTML = players.length === 0
+      ? "<li>No players yet</li>"
+      : players.map(name => `<li>${name}</li>`).join("");
+
+    const btn = document.getElementById("start-btn");
+    if (players.length >= 2) {
+      btn.disabled    = false;
+      btn.textContent = `Start Game (${players.length} players ready)`;
+    } else {
+      btn.disabled    = true;
+      btn.textContent = `Start Game (need ${2 - players.length} more player(s))`;
+    }
+  }
+
+  function handleWaiting(data) {
+    showState("state-waiting");
+    if (data.count !== undefined && data.needed !== undefined) {
+      document.querySelector("#state-waiting p").textContent =
+        `Waiting for host to press Start Game... (${data.count} / ${data.needed} players joined)`;
+    }
+  }
+
+  function handleGameStarting(data) {
+    document.getElementById("start-msg").textContent =
+      `Game starting with ${data.playerCount} player(s)!`;
+    document.getElementById("start-btn").style.display = "none";
+  }
+
+  function handleQuestion(data) {
+    showState("state-question");
+    document.getElementById("q-number").textContent = data.id || "";
+    document.getElementById("q-text").textContent   = data.text || "";
+    ["A", "B", "C", "D"].forEach(letter => {
+      document.getElementById("ans-" + letter).textContent =
+        `${letter}: ${data["choice" + letter] || "—"}`;
+    });
+  }
+
+  function handleRoundEnd(data) {
+    showState("state-round-end");
+    document.getElementById("correct-answer").textContent = data.correct || "?";
+    document.getElementById("score-rows").innerHTML = buildRows(data.scores || {});
+  }
+
+  function handleGameOver(data) {
+    showState("state-game-over");
+    document.getElementById("winner-name").textContent = data.winner || "—";
+    document.getElementById("final-rows").innerHTML    = buildRows(data.finalScores || {});
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  function showState(id) {
+    ["state-waiting", "state-question", "state-round-end", "state-game-over"]
+      .forEach(s => document.getElementById(s).style.display = "none");
+    document.getElementById(id).style.display = "block";
+  }
+
+  function buildRows(scores) {
+    return Object.entries(scores)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, score], i) =>
+        `<tr><td>${i + 1}</td><td>${name}</td><td>${score}</td></tr>`)
+      .join("");
+  }
+</script>
+</body>
+</html>

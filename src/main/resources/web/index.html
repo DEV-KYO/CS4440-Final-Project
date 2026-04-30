@@ -1,96 +1,276 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>QuizBlitz — Phase 1 Echo Test</title>
-<style>
-    body {
-        font-family: system-ui, -apple-system, sans-serif;
-        max-width: 600px;
-        margin: 40px auto;
-        padding: 0 20px;
-    }
-    #log {
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 12px;
-        height: 300px;
-        overflow-y: auto;
-        background: #f9f9f9;
-        font-family: monospace;
-        font-size: 13px;
-        margin-bottom: 12px;
-    }
-    .log-entry { margin-bottom: 4px; }
-    .log-sent { color: #0066cc; }
-    .log-received { color: #006633; }
-    .log-system { color: #888; font-style: italic; }
-    input, button {
-        padding: 8px 12px;
-        font-size: 14px;
-    }
-    input { width: 70%; }
-    button { width: 25%; cursor: pointer; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>QuizBlitz</title>
 </head>
 <body>
-<h1>QuizBlitz — Echo Test</h1>
-<p>Phase 1 skeleton. Type a message, hit send, see it echoed back.</p>
 
-<div id="log"></div>
+<!-- ── Screen 1: Join ──────────────────────────────────────────────────── -->
+<div id="screen-join">
+  <h1>QuizBlitz</h1>
+  <p>Real-time multiplayer quiz</p>
+  <input id="nameInput" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off">
+  <br>
+  <button id="joinBtn">Join Game</button>
+  <p id="error-msg"></p>
+</div>
 
-<input id="messageInput" type="text" placeholder="Type a message..." autocomplete="off">
-<button id="sendButton">Send</button>
+<!-- ── Screen 2: Waiting ───────────────────────────────────────────────── -->
+<div id="screen-waiting" style="display:none">
+  <h2>Waiting for game to start</h2>
+  <p id="waiting-count">Players joined: 1</p>
+  <p>The host will start the game when everyone is ready.</p>
+</div>
+
+<!-- ── Screen 3: Question ─────────────────────────────────────────────── -->
+<div id="screen-question" style="display:none">
+  <p>Time left: <strong id="timer">20</strong>s</p>
+  <p id="question-text">Loading question...</p>
+  <div>
+    <button data-choice="A" id="choiceA">A. —</button><br>
+    <button data-choice="B" id="choiceB">B. —</button><br>
+    <button data-choice="C" id="choiceC">C. —</button><br>
+    <button data-choice="D" id="choiceD">D. —</button>
+  </div>
+  <p id="answer-status"></p>
+</div>
+
+<!-- ── Screen 4: Round End ────────────────────────────────────────────── -->
+<div id="screen-round-end" style="display:none">
+  <h2>Round Over</h2>
+  <p id="correct-banner">Correct answer: —</p>
+  <p>Scores:</p>
+  <table border="1">
+    <tbody id="round-scores"></tbody>
+  </table>
+  <p>Next question coming up...</p>
+</div>
+
+<!-- ── Screen 5: Game Over ────────────────────────────────────────────── -->
+<div id="screen-game-over" style="display:none">
+  <h1>Game Over!</h1>
+  <p id="winner-label">Winner: —</p>
+  <p>Final Scores:</p>
+  <table border="1">
+    <tbody id="final-scores"></tbody>
+  </table>
+  <button id="playAgainBtn">Play Again</button>
+</div>
 
 <script>
-    const log = document.getElementById("log");
-    const input = document.getElementById("messageInput");
-    const sendButton = document.getElementById("sendButton");
+  // ── Connection ────────────────────────────────────────────────────────
+  // Use the same hostname the page loaded from — works for both localhost
+  // and LAN play via QR code (the phone connects to the laptop's IP).
+  const host = window.location.hostname || "localhost";
+  const ws   = new WebSocket(`ws://${host}:8080`);
 
-    function addLogEntry(text, cssClass) {
-        const div = document.createElement("div");
-        div.className = "log-entry " + cssClass;
-        div.textContent = text;
-        log.appendChild(div);
-        log.scrollTop = log.scrollHeight;
+  let myName            = "";
+  let currentQuestionId = null;
+  let hasAnswered       = false;
+  let timerInterval     = null;
+
+  // ── Screen switcher ───────────────────────────────────────────────────
+  const screens = ["screen-join", "screen-waiting", "screen-question",
+                   "screen-round-end", "screen-game-over"];
+
+  function showScreen(id) {
+    screens.forEach(s => document.getElementById(s).style.display = "none");
+    document.getElementById(id).style.display = "block";
+  }
+
+  // ── WebSocket handlers ────────────────────────────────────────────────
+  ws.onopen = () => console.log("Connected to QuizBlitz server");
+
+  ws.onclose = () => {
+    document.getElementById("error-msg").textContent = "Lost connection to server.";
+  };
+
+  ws.onerror = () => {
+    document.getElementById("error-msg").textContent = "Cannot connect — is the server running?";
+  };
+
+  ws.onmessage = function (event) {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch (e) {
+      console.warn("Non-JSON message:", event.data);
+      return;
     }
 
-    // Connect to the server. localhost works when both browser and server are
-    // on the same machine. For multi-device testing, replace with your IP.
-    const ws = new WebSocket("ws://localhost:8080");
+    const type = msg.type;
+    const data = msg.data || {};
 
-    ws.onopen = function() {
-        addLogEntry("[Connected to server]", "log-system");
-    };
+    switch (type) {
 
-    ws.onmessage = function(event) {
-        addLogEntry("← " + event.data, "log-received");
-    };
+      case "welcome":
+        myName = data.name || myName;
+        showScreen("screen-waiting");
+        break;
 
-    ws.onclose = function() {
-        addLogEntry("[Disconnected from server]", "log-system");
-    };
+      case "game_starting":
+        document.getElementById("waiting-count").textContent =
+          `Game starting with ${data.playerCount} player(s)...`;
+        break;
 
-    ws.onerror = function() {
-        addLogEntry("[Connection error — is the server running?]", "log-system");
-    };
-
-    function sendMessage() {
-        const text = input.value.trim();
-        if (text === "") return;
-        if (ws.readyState !== WebSocket.OPEN) {
-            addLogEntry("[Not connected]", "log-system");
-            return;
+      case "waiting":
+        if (data.count !== undefined && data.needed !== undefined) {
+          document.getElementById("waiting-count").textContent =
+            `Players joined: ${data.count} / ${data.needed}`;
         }
-        ws.send(text);
-        addLogEntry("→ " + text, "log-sent");
-        input.value = "";
+        break;
+
+      case "question":
+        handleQuestion(data);
+        break;
+
+      case "timer":
+        if (data.secondsLeft !== undefined) {
+          updateTimer(data.secondsLeft);
+        }
+        break;
+
+      case "answer_result":
+        handleAnswerResult(data);
+        break;
+
+      case "round_end":
+        handleRoundEnd(data);
+        break;
+
+      case "game_over":
+        handleGameOver(data);
+        break;
+
+      case "error":
+        document.getElementById("error-msg").textContent = msg.message || "Server error";
+        break;
+
+      default:
+        console.warn("Unknown message type:", type, msg);
+    }
+  };
+
+  // ── Join flow ─────────────────────────────────────────────────────────
+  document.getElementById("joinBtn").addEventListener("click", sendJoin);
+  document.getElementById("nameInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") sendJoin();
+  });
+
+  function sendJoin() {
+    const name  = document.getElementById("nameInput").value.trim();
+    const errEl = document.getElementById("error-msg");
+
+    if (!name) {
+      errEl.textContent = "Please enter a name.";
+      return;
+    }
+    if (ws.readyState !== WebSocket.OPEN) {
+      errEl.textContent = "Not connected to server — is it running?";
+      return;
     }
 
-    sendButton.addEventListener("click", sendMessage);
-    input.addEventListener("keydown", function(e) {
-        if (e.key === "Enter") sendMessage();
+    myName = name;
+    errEl.textContent = "";
+    document.getElementById("joinBtn").disabled = true;
+    ws.send(JSON.stringify({ type: "join", data: { name } }));
+  }
+
+  // ── Question screen ───────────────────────────────────────────────────
+  function handleQuestion(data) {
+    clearInterval(timerInterval);
+    hasAnswered       = false;
+    currentQuestionId = data.id ?? null;
+
+    document.getElementById("question-text").textContent = data.text || "Question loading...";
+
+    ["A", "B", "C", "D"].forEach(letter => {
+      const btn = document.getElementById("choice" + letter);
+      btn.textContent = data["choice" + letter] ? `${letter}. ${data["choice" + letter]}` : `${letter}. —`;
+      btn.disabled    = false;
     });
+
+    document.getElementById("answer-status").textContent = "";
+
+    let secondsLeft = 20;
+    updateTimer(secondsLeft);
+    timerInterval = setInterval(() => {
+      secondsLeft -= 1;
+      updateTimer(secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(timerInterval);
+        disableChoices();
+        document.getElementById("answer-status").textContent = "Time's up!";
+      }
+    }, 1000);
+
+    showScreen("screen-question");
+  }
+
+  function updateTimer(secondsLeft) {
+    document.getElementById("timer").textContent = Math.max(0, secondsLeft);
+  }
+
+  // Submit answer on choice click
+  ["choiceA", "choiceB", "choiceC", "choiceD"].forEach(id => {
+    document.getElementById(id).addEventListener("click", function () {
+      if (hasAnswered || this.disabled) return;
+      hasAnswered = true;
+
+      const choice = this.dataset.choice;
+      ws.send(JSON.stringify({ type: "answer", data: { questionId: currentQuestionId, choice } }));
+
+      disableChoices();
+      document.getElementById("answer-status").textContent = "Answer submitted!";
+    });
+  });
+
+  function disableChoices() {
+    ["choiceA", "choiceB", "choiceC", "choiceD"].forEach(id => {
+      document.getElementById(id).disabled = true;
+    });
+  }
+
+  function handleAnswerResult(data) {
+    document.getElementById("answer-status").textContent = data.correct
+      ? `Correct! Your score: ${data.score}`
+      : `Wrong. Your score: ${data.score}`;
+  }
+
+  // ── Round end screen ──────────────────────────────────────────────────
+  function handleRoundEnd(data) {
+    clearInterval(timerInterval);
+    document.getElementById("correct-banner").textContent =
+      `Correct answer: ${data.correct || "?"}`;
+    document.getElementById("round-scores").innerHTML = buildScoreRows(data.scores || {});
+    showScreen("screen-round-end");
+  }
+
+  // ── Game over screen ──────────────────────────────────────────────────
+  function handleGameOver(data) {
+    clearInterval(timerInterval);
+    document.getElementById("winner-label").textContent = `Winner: ${data.winner || "Unknown"}`;
+    document.getElementById("final-scores").innerHTML = buildScoreRows(data.finalScores || {});
+    showScreen("screen-game-over");
+  }
+
+  document.getElementById("playAgainBtn").addEventListener("click", () => {
+    window.location.reload();
+  });
+
+  // ── Shared helpers ────────────────────────────────────────────────────
+  function buildScoreRows(scores) {
+    const header = `<tr><th>Player</th><th>Score</th></tr>`;
+    const rows = Object.entries(scores)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, score]) => {
+        const marker = name === myName ? " (you)" : "";
+        return `<tr><td>${name}${marker}</td><td>${score}</td></tr>`;
+      }).join("");
+    return header + rows;
+  }
 </script>
 </body>
 </html>

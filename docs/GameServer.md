@@ -41,6 +41,7 @@ These methods are called automatically by the WebSocket library — you don't ca
 
 ### `onClose` — a player disconnected
 - Removes them from the player map
+- Removes them from the scoreboard so the game loop doesn't keep waiting for their answer
 - Broadcasts the updated player list to everyone else
 
 ### `onError` — something went wrong

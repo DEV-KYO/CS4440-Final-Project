@@ -14,8 +14,6 @@ public class GameLoop implements Runnable {
 	private volatile int currentQuestionId;
 
 	// tracks how many players have answered this round
-	// not volatile — protected by synchronized on recordAnswer() and getAnswersThisRound()
-	// because ++ is a read-modify-write and not atomic on its own
 	private int answersThisRound = 0;
 
 	// flipped to true when the host presses Start Game
@@ -25,10 +23,9 @@ public class GameLoop implements Runnable {
 	private static final int ROUND_SECONDS = 20;
 	private static final int BREAK_SECONDS = 3;
 
-	// reference to the server so we can broadcast messages to all clients
 	private GameServer server;
 
-	// constructor — takes the shared scoreboard and question bank from GameServer
+	// constructor
 	public GameLoop(Scoreboard scoreboard, QuestionBank questionBank) {
 		this.scoreboard   = scoreboard;
 		this.questionBank = questionBank;
@@ -57,21 +54,17 @@ public class GameLoop implements Runnable {
 	}
 
 	// called by GameServer each time a player submits any answer
-	// synchronized because two players answering at the same instant on different
-	// threads would both try to do ++ at the same time — without the lock, one count gets lost
 	public synchronized void recordAnswer(int questionId) {
 		if (questionId == currentQuestionId) {
 			answersThisRound++;
 		}
 	}
 
-	// reading answersThisRound also needs the same lock used in recordAnswer()
-	// so the game loop thread doesn't read a stale value mid-write
 	private synchronized int getAnswersThisRound() {
 		return answersThisRound;
 	}
 
-	// helper to sleep — returns false if the thread is interrupted so run() can exit cleanly
+	// helper to sleep, returns false if the thread is interrupted
 	private boolean sleep(long ms) {
 		try {
 			Thread.sleep(ms);
@@ -81,7 +74,7 @@ public class GameLoop implements Runnable {
 		}
 	}
 
-	// main game loop — runs on its own thread, controls all round timing
+	// main game loop, runs on its own thread, controls all round timing
 	@Override
 	public void run() {
 
@@ -100,7 +93,7 @@ public class GameLoop implements Runnable {
 		// loop through every question in the bank
 		for (Question q : questionBank.getAll()) {
 
-			// set the current question so checkAnswer() and recordAnswer() know what round we're in
+			// set the current question so checkAnswer and recordAnswer know what round we're in
 			currentQuestion   = q;
 			currentQuestionId = q.getId();
 			answersThisRound  = 0;
@@ -145,7 +138,7 @@ public class GameLoop implements Runnable {
 		System.out.println("BROADCAST: game_over");
 	}
 
-	// quick test entry point — runs the loop with fake players, no real server needed
+	// quick test runs the loop with fake players, no real server needed
 	public static void main(String[] args) {
 		Scoreboard   scoreboard   = new Scoreboard();
 		scoreboard.addPlayer("Bob");

@@ -67,6 +67,7 @@ public class GameServer extends WebSocketServer {
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         String name = playerNames.remove(conn);
         if (name != null) {
+            scoreboard.removePlayer(name);
             System.out.println("Player disconnected: " + name);
             broadcastToAll(buildPlayerListJson());
         } else {

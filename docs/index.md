@@ -12,6 +12,8 @@
 
 The page automatically connects to the server using the same IP address the player used to load the page. So if the player loaded the page from `http://192.168.1.5:8081`, it connects to `ws://192.168.1.5:8080`. No hardcoding needed — it just works.
 
+The connection is handled by a `connect()` function that retries automatically if the socket drops before the player has joined. This handles iOS QR scanners, which open a brief preview connection that immediately closes — the page silently reconnects within a second. The Join button and name input stay disabled until the connection is confirmed open, so players can't try to join during that window.
+
 ---
 
 ## The five screens

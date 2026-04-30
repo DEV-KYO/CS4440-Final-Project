@@ -37,6 +37,10 @@ All methods must be `synchronized`.
 - Adds the player to the map with a starting score of 0
 - Called by GameServer when a player joins
 
+### `removePlayer(name)`
+- Removes a player from the scoreboard entirely
+- Called by GameServer when a player disconnects so the round doesn't get stuck waiting for someone who left
+
 ### `addPoints(name, points)`
 - Adds points to a player's score
 - Called by GameServer when a player answers correctly (10 points per correct answer)

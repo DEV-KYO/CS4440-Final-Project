@@ -11,9 +11,9 @@
 <div id="screen-join">
   <h1>QuizBlitz</h1>
   <p>Real-time multiplayer quiz</p>
-  <input id="nameInput" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off">
+  <input id="nameInput" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" disabled>
   <br>
-  <button id="joinBtn">Join Game</button>
+  <button id="joinBtn" disabled>Connecting...</button>
   <p id="error-msg"></p>
 </div>
 
@@ -60,16 +60,11 @@
 </div>
 
 <script>
-  // ── Connection ────────────────────────────────────────────────────────
-  // Use the same hostname the page loaded from — works for both localhost
-  // and LAN play via QR code (the phone connects to the laptop's IP).
-  const host = window.location.hostname || "localhost";
-  const ws   = new WebSocket(`ws://${host}:8080`);
-
   let myName            = "";
   let currentQuestionId = null;
   let hasAnswered       = false;
   let timerInterval     = null;
+  let ws                = null;
 
   // ── Screen switcher ───────────────────────────────────────────────────
   const screens = ["screen-join", "screen-waiting", "screen-question",
@@ -80,18 +75,42 @@
     document.getElementById(id).style.display = "block";
   }
 
-  // ── WebSocket handlers ────────────────────────────────────────────────
-  ws.onopen = () => console.log("Connected to QuizBlitz server");
+  // ── Connection ────────────────────────────────────────────────────────
+  // Wrapped in a function so we can silently retry if the connection drops
+  // before the player has joined. iOS QR scanners open a preview connection
+  // and immediately close it — auto-reconnect handles that transparently.
+  function connect() {
+    const host = window.location.hostname || "localhost";
+    ws = new WebSocket(`ws://${host}:8080`);
 
-  ws.onclose = () => {
-    document.getElementById("error-msg").textContent = "Lost connection to server.";
-  };
+    ws.onopen = () => {
+      console.log("Connected to QuizBlitz server");
+      document.getElementById("joinBtn").disabled   = false;
+      document.getElementById("joinBtn").textContent = "Join Game";
+      document.getElementById("nameInput").disabled  = false;
+    };
 
-  ws.onerror = () => {
-    document.getElementById("error-msg").textContent = "Cannot connect — is the server running?";
-  };
+    ws.onclose = () => {
+      if (myName === "") {
+        // Not yet joined — silently retry after 1 second.
+        // This handles the QR scanner preview drop without alarming the player.
+        setTimeout(connect, 1000);
+      } else {
+        // Already in-game — the drop is real, let the player know.
+        document.getElementById("error-msg").textContent = "Lost connection to server.";
+      }
+    };
 
-  ws.onmessage = function (event) {
+    ws.onerror = () => {
+      if (myName === "") {
+        // Suppress the error on the join screen; onclose will trigger the retry.
+        console.warn("WebSocket error before join — will retry");
+      } else {
+        document.getElementById("error-msg").textContent = "Cannot connect — is the server running?";
+      }
+    };
+
+    ws.onmessage = function (event) {
     let msg;
     try {
       msg = JSON.parse(event.data);
@@ -152,6 +171,10 @@
         console.warn("Unknown message type:", type, msg);
     }
   };
+  } // end connect()
+
+  // Kick off the first connection attempt when the page loads.
+  connect();
 
   // ── Join flow ─────────────────────────────────────────────────────────
   document.getElementById("joinBtn").addEventListener("click", sendJoin);
@@ -167,8 +190,8 @@
       errEl.textContent = "Please enter a name.";
       return;
     }
-    if (ws.readyState !== WebSocket.OPEN) {
-      errEl.textContent = "Not connected to server — is it running?";
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      errEl.textContent = "Connecting to server… try again in a moment.";
       return;
     }
 

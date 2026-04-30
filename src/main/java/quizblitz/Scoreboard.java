@@ -12,6 +12,11 @@ public class Scoreboard {
         scores.putIfAbsent(name, 0);
     }
 
+    // Remove a player entirely (e.g. they disconnected mid-game)
+    public synchronized void removePlayer(String name) {
+        scores.remove(name);
+    }
+
     // Add points to a player
     public synchronized void addPoints(String name, int points) {
         int current = scores.getOrDefault(name, 0);

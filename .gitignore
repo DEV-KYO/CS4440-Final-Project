@@ -20,3 +20,6 @@ Thumbs.db
 
 # Java
 *.class
+
+# Built JAR — run "mvn package" to regenerate it
+quizblitz.jar

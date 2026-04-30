@@ -71,15 +71,37 @@ If you see red error markers, right-click the project → **Maven → Update Pro
 
 ---
 
-## 7. Run the server
+## 7. Build the JAR (required for demo day)
 
-Right-click `GameServer.java` → **Run As → Java Application**
+The launch scripts (`start-windows.bat` / `start-mac.command`) need a single `quizblitz.jar` file in the project root. Build it once in Eclipse:
 
-Or from the command line inside the project folder:
+1. Right-click the project → **Run As → Maven build...**
+2. In the **Goals** field, type: `package`
+3. Click **Run**
 
+This creates `quizblitz.jar` in the project root. You only need to rebuild it when you change Java code. The JAR bundles all dependencies so no Maven installation is needed to run it.
+
+**Mac only — run this once in Terminal before demo day:**
+```
+chmod +x start-mac.command
+```
+
+---
+
+## 8. Run the server
+
+**For development** — right-click `GameServer.java` → **Run As → Java Application**
+
+Or from the command line:
 ```
 mvn clean exec:java
 ```
+
+**For demo day** — just double-click the launch script:
+- **Windows:** `start-windows.bat`
+- **Mac:** `start-mac.command`
+
+The script starts the server, waits 3 seconds, then automatically opens the host display page in your browser.
 
 You should see this printed in the console:
 
@@ -96,7 +118,7 @@ You should see this printed in the console:
 
 ---
 
-## 8. WiFi setup
+## 9. WiFi setup
 
 University WiFi blocks devices from talking to each other directly, so phones usually can't reach your laptop over it. The fix:
 
@@ -107,7 +129,7 @@ University WiFi blocks devices from talking to each other directly, so phones us
 
 ---
 
-## 9. Firewall (if phones can't connect)
+## 10. Firewall (if phones can't connect)
 
 **Windows** — run this once in PowerShell as Administrator:
 
@@ -128,7 +150,7 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/bin/java
 
 ---
 
-## 10. If port 8080 is already in use
+## 11. If port 8080 is already in use
 
 This happens if you ran the server before and it didn't shut down cleanly.
 
@@ -160,7 +182,7 @@ Right-click project → Maven → Update Project → OK. If that doesn't fix it,
 You installed the wrong Eclipse package. Reinstall using "Eclipse IDE for Java Developers".
 
 **Port 8080 already in use after running**
-Eclipse sometimes leaves the process running in the background. Use the commands in step 10, or just restart Eclipse.
+Eclipse sometimes leaves the process running in the background. Use the commands in step 11, or just restart Eclipse.
 
 **Phones connect to the hotspot but still can't reach the server**
 Check that the firewall rule from step 9 was added. Also make sure you're using the IP address shown in the server console — it updates when you switch networks.

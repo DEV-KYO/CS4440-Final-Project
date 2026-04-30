@@ -30,13 +30,16 @@ CS4440-Final-Project/
 ├── architecture.svg
 ├── pom.xml                          ← Maven config (handles dependencies automatically)
 ├── .gitignore
+├── start-windows.bat                ← double-click to run on Windows (demo day)
+├── start-mac.command                ← double-click to run on Mac (demo day)
 │
 ├── docs/                            ← one doc per file, read the one for your role
 │   ├── GameServer.md
 │   ├── GameLoop.md
 │   ├── Scoreboard.md
 │   ├── QuestionBank.md
-│   └── index.md
+│   ├── index.md
+│   └── display.md
 │
 └── src/
     └── main/
@@ -52,6 +55,8 @@ CS4440-Final-Project/
                 ├── index.html       ← player page (phones)
                 └── display.html     ← host display page (shows QR code + game state)
 ```
+
+> `quizblitz.jar` is not committed to the repo (see `.gitignore`). Run `mvn package` to generate it — see SETUP.md step 7.
 
 ---
 

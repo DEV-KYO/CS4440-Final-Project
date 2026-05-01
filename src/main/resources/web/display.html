@@ -4,67 +4,506 @@
   <meta charset="UTF-8">
   <title>QuizBlitz — Host Display</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cyan: #00e5ff;
+      --cyan-dark: #00b8d4;
+      --blue: #0a1628;
+      --blue-mid: #0d2240;
+      --blue-light: #1a3a6e;
+      --accent: #ffe600;
+      --accent2: #ff5c8a;
+      --white: #f0f8ff;
+      --card-bg: rgba(13, 34, 64, 0.85);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--blue);
+      color: var(--white);
+      font-family: 'Nunito', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(ellipse at 20% 20%, rgba(0,229,255,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 80%, rgba(255,92,138,0.07) 0%, transparent 60%);
+    }
+
+    /* ── Animated background dots ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(0,229,255,0.15) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      animation: fadeDown 0.6s ease;
+    }
+
+    .logo {
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--cyan), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      filter: drop-shadow(0 0 20px rgba(0,229,255,0.4));
+    }
+
+    .logo-sub {
+      font-size: 0.95rem;
+      color: rgba(240,248,255,0.5);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── Grid layout ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(0,229,255,0.1);
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .card-title {
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title::before {
+      content: '';
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: var(--cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    /* ── QR Section ── */
+    .qr-card { animation-delay: 0.1s; }
+
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      margin: 12px 0;
+    }
+
+    #qrcode canvas, #qrcode img {
+      border-radius: 10px;
+      border: 3px solid var(--cyan);
+      box-shadow: 0 0 20px rgba(0,229,255,0.3);
+    }
+
+    .game-url {
+      background: rgba(0,229,255,0.08);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      color: var(--cyan);
+      word-break: break-all;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* ── Players ── */
+    .players-card { animation-delay: 0.2s; }
+
+    .player-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+      color: var(--blue);
+      font-family: 'Russo One', sans-serif;
+      font-size: 1.4rem;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      margin-bottom: 10px;
+      box-shadow: 0 0 15px rgba(0,229,255,0.4);
+    }
+
+    #player-list {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 40px;
+    }
+
+    #player-list li {
+      background: rgba(0,229,255,0.1);
+      border: 1px solid rgba(0,229,255,0.25);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--white);
+      animation: popIn 0.3s ease;
+    }
+
+    /* ── Start Button ── */
+    .start-section {
+      margin-top: 16px;
+      text-align: center;
+    }
+
+    #start-btn {
+      font-family: 'Russo One', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+      color: var(--blue);
+      border: none;
+      border-radius: 50px;
+      padding: 14px 32px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 20px rgba(0,229,255,0.3);
+      width: 100%;
+    }
+
+    #start-btn:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(0,229,255,0.6);
+    }
+
+    #start-btn:disabled {
+      background: rgba(0,229,255,0.15);
+      color: rgba(240,248,255,0.4);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    #start-msg {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 700;
+      min-height: 20px;
+    }
+
+    /* ── Game State Panel ── */
+    .state-card {
+      animation-delay: 0.3s;
+      min-height: 300px;
+    }
+
+    /* Waiting */
+    #state-waiting {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+      text-align: center;
+    }
+
+    .waiting-pulse {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      border: 3px solid var(--cyan);
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    #state-waiting p {
+      color: rgba(240,248,255,0.7);
+      font-size: 1rem;
+    }
+
+    /* Question */
+    #state-question { display: none; }
+
+    .q-number {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--blue);
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.8rem;
+      padding: 3px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+
+    #q-text {
+      font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+      font-weight: 800;
+      line-height: 1.4;
+      margin-bottom: 20px;
+      color: var(--white);
+    }
+
+    .answers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .answer-item {
+      background: rgba(0,229,255,0.07);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .answer-letter {
+      background: var(--cyan);
+      color: var(--blue);
+      font-family: 'Russo One', sans-serif;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    /* Round End / Game Over */
+    #state-round-end, #state-game-over { display: none; }
+
+    .state-heading {
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .correct-answer-banner {
+      background: rgba(255,230,0,0.1);
+      border: 1px solid rgba(255,230,0,0.3);
+      border-radius: 10px;
+      padding: 10px 16px;
+      margin: 12px 0;
+      font-size: 1rem;
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    /* Score Table */
+    .score-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .score-table thead tr {
+      background: rgba(0,229,255,0.12);
+    }
+
+    .score-table th {
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      padding: 10px 14px;
+      text-align: left;
+    }
+
+    .score-table td {
+      padding: 10px 14px;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(0,229,255,0.08);
+    }
+
+    .score-table tbody tr:first-child td:first-child::before {
+      content: '🥇 ';
+    }
+
+    .score-table tbody tr:nth-child(2) td:first-child::before {
+      content: '🥈 ';
+    }
+
+    .score-table tbody tr:nth-child(3) td:first-child::before {
+      content: '🥉 ';
+    }
+
+    .winner-display {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .winner-trophy {
+      font-size: 3rem;
+      animation: bounce 0.8s ease infinite alternate;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .winner-name {
+      font-family: 'Russo One', sans-serif;
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.7); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-10px); }
+    }
+  </style>
 </head>
 <body>
 
-<h1>QuizBlitz — Host Display</h1>
+<div class="container">
 
-<hr>
+  <!-- Header -->
+  <header>
+    <div class="logo">⚡ QuizBlitz</div>
+    <div class="logo-sub">Host Display</div>
+  </header>
 
-<h2>Join the game</h2>
-<div id="qrcode"></div>
-<p>URL: <span id="game-url">Connecting...</span></p>
+  <div class="main-grid">
 
-<hr>
+    <!-- Left Column -->
+    <div>
+      <!-- QR Card -->
+      <div class="card qr-card" style="margin-bottom:16px;">
+        <div class="card-title">Scan to Join</div>
+        <div id="qrcode"></div>
+        <div class="game-url"><span id="game-url">Connecting to server...</span></div>
+      </div>
 
-<h2>Players (<span id="player-count">0</span>)</h2>
-<ul id="player-list"></ul>
+      <!-- Players Card -->
+      <div class="card players-card">
+        <div class="card-title">Players</div>
+        <div class="player-count-badge" id="player-count">0</div>
+        <ul id="player-list"><li style="opacity:0.4;font-weight:400;">No players yet...</li></ul>
+        <div class="start-section">
+          <button id="start-btn" disabled>Start Game (need 2+ players)</button>
+          <p id="start-msg"></p>
+        </div>
+      </div>
+    </div>
 
-<button id="start-btn" disabled>Start Game (need 2+ players)</button>
-<p id="start-msg"></p>
+    <!-- Right Column: Game State -->
+    <div class="card state-card">
+      <div class="card-title">Game State</div>
 
-<hr>
+      <!-- Waiting -->
+      <div id="state-waiting">
+        <div class="waiting-pulse"></div>
+        <p>Waiting for host to press Start Game...</p>
+      </div>
 
-<h2>Game State</h2>
+      <!-- Question -->
+      <div id="state-question">
+        <div class="q-number">QUESTION <span id="q-number"></span></div>
+        <p id="q-text"></p>
+        <div class="answers-grid">
+          <div class="answer-item"><span class="answer-letter">A</span><span id="ans-A"></span></div>
+          <div class="answer-item"><span class="answer-letter">B</span><span id="ans-B"></span></div>
+          <div class="answer-item"><span class="answer-letter">C</span><span id="ans-C"></span></div>
+          <div class="answer-item"><span class="answer-letter">D</span><span id="ans-D"></span></div>
+        </div>
+      </div>
 
-<div id="state-waiting">
-  <p>Waiting for host to press Start Game...</p>
-</div>
+      <!-- Round End -->
+      <div id="state-round-end">
+        <div class="state-heading">Round Over!</div>
+        <div class="correct-answer-banner">✅ Correct Answer: <span id="correct-answer"></span></div>
+        <table class="score-table" id="score-table">
+          <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
+          <tbody id="score-rows"></tbody>
+        </table>
+      </div>
 
-<div id="state-question" style="display:none">
-  <p><strong>Question <span id="q-number"></span></strong></p>
-  <p id="q-text"></p>
-  <ul>
-    <li id="ans-A"></li>
-    <li id="ans-B"></li>
-    <li id="ans-C"></li>
-    <li id="ans-D"></li>
-  </ul>
-</div>
+      <!-- Game Over -->
+      <div id="state-game-over">
+        <div class="state-heading">Game Over!</div>
+        <div class="winner-display">
+          <span class="winner-trophy">🏆</span>
+          <div class="winner-name" id="winner-name"></div>
+        </div>
+        <table class="score-table" id="final-table">
+          <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
+          <tbody id="final-rows"></tbody>
+        </table>
+      </div>
 
-<div id="state-round-end" style="display:none">
-  <p><strong>Round Over</strong></p>
-  <p>Correct answer: <strong id="correct-answer"></strong></p>
-  <table border="1" id="score-table">
-    <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
-    <tbody id="score-rows"></tbody>
-  </table>
-</div>
-
-<div id="state-game-over" style="display:none">
-  <p><strong>Game Over!</strong></p>
-  <p>Winner: <strong id="winner-name"></strong></p>
-  <table border="1" id="final-table">
-    <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
-    <tbody id="final-rows"></tbody>
-  </table>
+    </div>
+  </div>
 </div>
 
 <script>
-  // ── WebSocket ─────────────────────────────────────────────────────────
   const host = window.location.hostname || "localhost";
   const ws   = new WebSocket(`ws://${host}:8080`);
-
   let qrGenerated = false;
 
   ws.onopen  = () => console.log("Host display connected");
@@ -74,39 +513,31 @@
     let msg;
     try { msg = JSON.parse(event.data); }
     catch (e) { return; }
-
     const type = msg.type;
     const data = msg.data || {};
-
     switch (type) {
-      case "server_info":   handleServerInfo(data);  break;
-      case "player_list":   handlePlayerList(data);  break;
-      case "waiting":       handleWaiting(data);     break;
-      case "game_starting": handleGameStarting(data);break;
-      case "question":      handleQuestion(data);    break;
-      case "round_end":     handleRoundEnd(data);    break;
-      case "game_over":     handleGameOver(data);    break;
+      case "server_info":   handleServerInfo(data);   break;
+      case "player_list":   handlePlayerList(data);   break;
+      case "waiting":       handleWaiting(data);      break;
+      case "game_starting": handleGameStarting(data); break;
+      case "question":      handleQuestion(data);     break;
+      case "round_end":     handleRoundEnd(data);     break;
+      case "game_over":     handleGameOver(data);     break;
     }
   };
 
-  // ── Start Game button ─────────────────────────────────────────────────
   document.getElementById("start-btn").addEventListener("click", function () {
     ws.send(JSON.stringify({ type: "start_game" }));
-    this.disabled   = true;
+    this.disabled    = true;
     this.textContent = "Starting...";
   });
 
-  // ── Handlers ──────────────────────────────────────────────────────────
   function handleServerInfo(data) {
     if (!data.gameUrl || qrGenerated) return;
     qrGenerated = true;
-
     document.getElementById("game-url").textContent = data.gameUrl;
-
     new QRCode(document.getElementById("qrcode"), {
-      text: data.gameUrl,
-      width: 200,
-      height: 200,
+      text: data.gameUrl, width: 200, height: 200,
       correctLevel: QRCode.CorrectLevel.M
     });
   }
@@ -114,12 +545,10 @@
   function handlePlayerList(data) {
     const players = data.players || [];
     document.getElementById("player-count").textContent = players.length;
-
     const list = document.getElementById("player-list");
     list.innerHTML = players.length === 0
-      ? "<li>No players yet</li>"
+      ? "<li style='opacity:0.4;font-weight:400;'>No players yet...</li>"
       : players.map(name => `<li>${name}</li>`).join("");
-
     const btn = document.getElementById("start-btn");
     if (players.length >= 2) {
       btn.disabled    = false;
@@ -148,9 +577,8 @@
     showState("state-question");
     document.getElementById("q-number").textContent = data.id || "";
     document.getElementById("q-text").textContent   = data.text || "";
-    ["A", "B", "C", "D"].forEach(letter => {
-      document.getElementById("ans-" + letter).textContent =
-        `${letter}: ${data["choice" + letter] || "—"}`;
+    ["A","B","C","D"].forEach(l => {
+      document.getElementById("ans-" + l).textContent = data["choice" + l] || "—";
     });
   }
 
@@ -166,11 +594,10 @@
     document.getElementById("final-rows").innerHTML    = buildRows(data.finalScores || {});
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────
   function showState(id) {
-    ["state-waiting", "state-question", "state-round-end", "state-game-over"]
+    ["state-waiting","state-question","state-round-end","state-game-over"]
       .forEach(s => document.getElementById(s).style.display = "none");
-    document.getElementById(id).style.display = "block";
+    document.getElementById(id).style.display = id === "state-waiting" ? "flex" : "block";
   }
 
   function buildRows(scores) {

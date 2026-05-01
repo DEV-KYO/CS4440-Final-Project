@@ -4,59 +4,493 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>QuizBlitz</title>
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cyan: #00e5ff;
+      --cyan-dark: #00b8d4;
+      --blue: #0a1628;
+      --blue-mid: #0d2240;
+      --blue-light: #1a3a6e;
+      --accent: #ffe600;
+      --accent2: #ff5c8a;
+      --white: #f0f8ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--blue);
+      color: var(--white);
+      font-family: 'Nunito', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background-image:
+        radial-gradient(ellipse at 30% 10%, rgba(0,229,255,0.1) 0%, transparent 55%),
+        radial-gradient(ellipse at 70% 90%, rgba(255,92,138,0.08) 0%, transparent 55%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(0,229,255,0.12) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .screen {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      animation: fadeUp 0.4s ease;
+    }
+
+    /* ── Logo ── */
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-text {
+      font-family: 'Russo One', sans-serif;
+      font-size: 2.8rem;
+      background: linear-gradient(135deg, var(--cyan), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 16px rgba(0,229,255,0.4));
+      display: block;
+    }
+
+    .logo-sub {
+      font-size: 0.8rem;
+      color: rgba(240,248,255,0.45);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: rgba(13, 34, 64, 0.9);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 20px;
+      padding: 28px 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,229,255,0.1);
+    }
+
+    .card-heading {
+      font-family: 'Russo One', sans-serif;
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+      text-align: center;
+      color: var(--white);
+    }
+
+    /* ── Input ── */
+    .input-group {
+      margin-bottom: 16px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(0,229,255,0.06);
+      border: 2px solid rgba(0,229,255,0.25);
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]::placeholder {
+      color: rgba(240,248,255,0.3);
+      font-weight: 400;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.15);
+    }
+
+    input[type="text"]:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      width: 100%;
+      font-family: 'Russo One', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--cyan), var(--cyan-dark));
+      color: var(--blue);
+      border: none;
+      border-radius: 12px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 20px rgba(0,229,255,0.25);
+    }
+
+    .btn-primary:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0,229,255,0.5);
+    }
+
+    .btn-primary:disabled {
+      background: rgba(0,229,255,0.15);
+      color: rgba(240,248,255,0.3);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: transparent;
+      color: var(--cyan);
+      border: 2px solid var(--cyan);
+      border-radius: 12px;
+      padding: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 12px;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0,229,255,0.1);
+    }
+
+    /* ── Error msg ── */
+    #error-msg {
+      min-height: 22px;
+      font-size: 0.85rem;
+      color: var(--accent2);
+      font-weight: 700;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    /* ── Waiting Screen ── */
+    #screen-waiting { display: none; }
+
+    .waiting-animation {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 24px 0;
+    }
+
+    .waiting-dot {
+      width: 12px; height: 12px;
+      background: var(--cyan);
+      border-radius: 50%;
+      animation: dotBounce 1.2s ease-in-out infinite;
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    .waiting-dot:nth-child(2) { animation-delay: 0.2s; }
+    .waiting-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    .waiting-info {
+      text-align: center;
+      color: rgba(240,248,255,0.6);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    #waiting-count {
+      color: var(--cyan);
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+
+    /* ── Question Screen ── */
+    #screen-question { display: none; }
+
+    .timer-bar-wrap {
+      background: rgba(0,229,255,0.1);
+      border-radius: 50px;
+      height: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .timer-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--accent));
+      border-radius: 50px;
+      transition: width 1s linear;
+      width: 100%;
+    }
+
+    .timer-display {
+      text-align: right;
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.85rem;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+
+    #question-text {
+      font-size: 1.1rem;
+      font-weight: 800;
+      line-height: 1.5;
+      margin-bottom: 20px;
+      color: var(--white);
+      text-align: center;
+      min-height: 60px;
+    }
+
+    .choices-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .choice-btn {
+      background: rgba(0,229,255,0.07);
+      border: 2px solid rgba(0,229,255,0.2);
+      border-radius: 12px;
+      padding: 14px 10px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--white);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .choice-btn:not(:disabled):hover {
+      background: rgba(0,229,255,0.15);
+      border-color: var(--cyan);
+      transform: translateY(-1px);
+    }
+
+    .choice-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .choice-letter {
+      background: var(--cyan);
+      color: var(--blue);
+      font-family: 'Russo One', sans-serif;
+      width: 24px; height: 24px;
+      min-width: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+    }
+
+    #answer-status {
+      text-align: center;
+      font-weight: 800;
+      font-size: 1rem;
+      min-height: 24px;
+      color: var(--accent);
+    }
+
+    /* ── Round End ── */
+    #screen-round-end { display: none; }
+
+    .correct-banner {
+      background: rgba(255,230,0,0.1);
+      border: 1px solid rgba(255,230,0,0.3);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 1.05rem;
+      margin-bottom: 16px;
+    }
+
+    .score-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .score-table th {
+      font-family: 'Russo One', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      padding: 8px 10px;
+      text-align: left;
+      background: rgba(0,229,255,0.08);
+    }
+
+    .score-table td {
+      padding: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border-bottom: 1px solid rgba(0,229,255,0.07);
+    }
+
+    .next-label {
+      text-align: center;
+      margin-top: 14px;
+      font-size: 0.85rem;
+      color: rgba(240,248,255,0.4);
+    }
+
+    /* ── Game Over ── */
+    #screen-game-over { display: none; }
+
+    .winner-section {
+      text-align: center;
+      padding: 16px 0 20px;
+    }
+
+    .trophy-icon {
+      font-size: 3rem;
+      display: block;
+      animation: bounce 0.7s ease infinite alternate;
+    }
+
+    #winner-label {
+      font-family: 'Russo One', sans-serif;
+      font-size: 1.4rem;
+      margin-top: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes dotBounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40%            { transform: translateY(-12px); opacity: 1; }
+    }
+
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-8px); }
+    }
+  </style>
 </head>
 <body>
 
-<!-- ── Screen 1: Join ──────────────────────────────────────────────────── -->
-<div id="screen-join">
-  <h1>QuizBlitz</h1>
-  <p>Real-time multiplayer quiz</p>
-  <input id="nameInput" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" disabled>
-  <br>
-  <button id="joinBtn" disabled>Connecting...</button>
-  <p id="error-msg"></p>
-</div>
-
-<!-- ── Screen 2: Waiting ───────────────────────────────────────────────── -->
-<div id="screen-waiting" style="display:none">
-  <h2>Waiting for game to start</h2>
-  <p id="waiting-count">Players joined: 1</p>
-  <p>The host will start the game when everyone is ready.</p>
-</div>
-
-<!-- ── Screen 3: Question ─────────────────────────────────────────────── -->
-<div id="screen-question" style="display:none">
-  <p>Time left: <strong id="timer">20</strong>s</p>
-  <p id="question-text">Loading question...</p>
-  <div>
-    <button data-choice="A" id="choiceA">A. —</button><br>
-    <button data-choice="B" id="choiceB">B. —</button><br>
-    <button data-choice="C" id="choiceC">C. —</button><br>
-    <button data-choice="D" id="choiceD">D. —</button>
+<!-- ── Screen 1: Join ── -->
+<div class="screen" id="screen-join">
+  <div class="logo">
+    <span class="logo-text">⚡ QuizBlitz</span>
+    <span class="logo-sub">Real-time multiplayer quiz</span>
   </div>
-  <p id="answer-status"></p>
+  <div class="card">
+    <div class="input-group">
+      <input id="nameInput" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" disabled>
+    </div>
+    <button class="btn-primary" id="joinBtn" disabled>Connecting...</button>
+    <p id="error-msg"></p>
+  </div>
 </div>
 
-<!-- ── Screen 4: Round End ────────────────────────────────────────────── -->
-<div id="screen-round-end" style="display:none">
-  <h2>Round Over</h2>
-  <p id="correct-banner">Correct answer: —</p>
-  <p>Scores:</p>
-  <table border="1">
-    <tbody id="round-scores"></tbody>
-  </table>
-  <p>Next question coming up...</p>
+<!-- ── Screen 2: Waiting ── -->
+<div class="screen" id="screen-waiting">
+  <div class="logo">
+    <span class="logo-text">⚡ QuizBlitz</span>
+  </div>
+  <div class="card">
+    <div class="card-heading">You're In! 🎉</div>
+    <div class="waiting-animation">
+      <div class="waiting-dot"></div>
+      <div class="waiting-dot"></div>
+      <div class="waiting-dot"></div>
+    </div>
+    <div class="waiting-info">
+      <p id="waiting-count">Players joined: 1</p>
+      <p style="margin-top:8px;">The host will start the game when everyone is ready.</p>
+    </div>
+  </div>
 </div>
 
-<!-- ── Screen 5: Game Over ────────────────────────────────────────────── -->
-<div id="screen-game-over" style="display:none">
-  <h1>Game Over!</h1>
-  <p id="winner-label">Winner: —</p>
-  <p>Final Scores:</p>
-  <table border="1">
-    <tbody id="final-scores"></tbody>
-  </table>
-  <button id="playAgainBtn">Play Again</button>
+<!-- ── Screen 3: Question ── -->
+<div class="screen" id="screen-question">
+  <div class="card">
+    <div class="timer-display"><span id="timer">20</span>s remaining</div>
+    <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+    <p id="question-text">Loading question...</p>
+    <div class="choices-grid">
+      <button class="choice-btn" data-choice="A" id="choiceA">
+        <span class="choice-letter">A</span><span id="choiceA-text">—</span>
+      </button>
+      <button class="choice-btn" data-choice="B" id="choiceB">
+        <span class="choice-letter">B</span><span id="choiceB-text">—</span>
+      </button>
+      <button class="choice-btn" data-choice="C" id="choiceC">
+        <span class="choice-letter">C</span><span id="choiceC-text">—</span>
+      </button>
+      <button class="choice-btn" data-choice="D" id="choiceD">
+        <span class="choice-letter">D</span><span id="choiceD-text">—</span>
+      </button>
+    </div>
+    <p id="answer-status"></p>
+  </div>
+</div>
+
+<!-- ── Screen 4: Round End ── -->
+<div class="screen" id="screen-round-end">
+  <div class="card">
+    <div class="card-heading">Round Over! 🎯</div>
+    <div class="correct-banner">✅ Correct Answer: <span id="correct-banner"></span></div>
+    <p style="font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:8px;">Scores</p>
+    <table class="score-table">
+      <thead><tr><th>Player</th><th>Score</th></tr></thead>
+      <tbody id="round-scores"></tbody>
+    </table>
+    <p class="next-label">⏱ Next question coming up...</p>
+  </div>
+</div>
+
+<!-- ── Screen 5: Game Over ── -->
+<div class="screen" id="screen-game-over">
+  <div class="card">
+    <div class="card-heading">Game Over!</div>
+    <div class="winner-section">
+      <span class="trophy-icon">🏆</span>
+      <p id="winner-label">Winner: —</p>
+    </div>
+    <p style="font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:8px;">Final Scores</p>
+    <table class="score-table">
+      <thead><tr><th>Player</th><th>Score</th></tr></thead>
+      <tbody id="final-scores"></tbody>
+    </table>
+    <button class="btn-secondary" id="playAgainBtn">Play Again</button>
+  </div>
 </div>
 
 <script>
@@ -65,167 +499,106 @@
   let hasAnswered       = false;
   let timerInterval     = null;
   let ws                = null;
+  let totalSeconds      = 20;
 
-  // ── Screen switcher ───────────────────────────────────────────────────
-  const screens = ["screen-join", "screen-waiting", "screen-question",
-                   "screen-round-end", "screen-game-over"];
+  const screens = ["screen-join","screen-waiting","screen-question","screen-round-end","screen-game-over"];
 
   function showScreen(id) {
-    screens.forEach(s => document.getElementById(s).style.display = "none");
-    document.getElementById(id).style.display = "block";
+    screens.forEach(s => {
+      const el = document.getElementById(s);
+      el.style.display = "none";
+    });
+    const target = document.getElementById(id);
+    target.style.display = "flex";
+    target.style.flexDirection = "column";
+    target.style.alignItems = "center";
+    target.style.width = "100%";
   }
 
-  // ── Connection ────────────────────────────────────────────────────────
-  // Wrapped in a function so we can silently retry if the connection drops
-  // before the player has joined. iOS QR scanners open a preview connection
-  // and immediately close it — auto-reconnect handles that transparently.
   function connect() {
     const host = window.location.hostname || "localhost";
     ws = new WebSocket(`ws://${host}:8080`);
 
     ws.onopen = () => {
-      console.log("Connected to QuizBlitz server");
-      document.getElementById("joinBtn").disabled   = false;
+      document.getElementById("joinBtn").disabled    = false;
       document.getElementById("joinBtn").textContent = "Join Game";
       document.getElementById("nameInput").disabled  = false;
     };
 
     ws.onclose = () => {
-      if (myName === "") {
-        // Not yet joined — silently retry after 1 second.
-        // This handles the QR scanner preview drop without alarming the player.
-        setTimeout(connect, 1000);
-      } else {
-        // Already in-game — the drop is real, let the player know.
-        document.getElementById("error-msg").textContent = "Lost connection to server.";
-      }
+      if (myName === "") setTimeout(connect, 1000);
+      else document.getElementById("error-msg").textContent = "Lost connection to server.";
     };
 
     ws.onerror = () => {
-      if (myName === "") {
-        // Suppress the error on the join screen; onclose will trigger the retry.
-        console.warn("WebSocket error before join — will retry");
-      } else {
-        document.getElementById("error-msg").textContent = "Cannot connect — is the server running?";
-      }
+      if (myName === "") console.warn("WebSocket error before join — will retry");
+      else document.getElementById("error-msg").textContent = "Cannot connect — is the server running?";
     };
 
     ws.onmessage = function (event) {
-    let msg;
-    try {
-      msg = JSON.parse(event.data);
-    } catch (e) {
-      console.warn("Non-JSON message:", event.data);
-      return;
-    }
+      let msg;
+      try { msg = JSON.parse(event.data); }
+      catch (e) { return; }
+      const type = msg.type;
+      const data = msg.data || {};
+      switch (type) {
+        case "welcome":       myName = data.name || myName; showScreen("screen-waiting"); break;
+        case "game_starting": document.getElementById("waiting-count").textContent = `Game starting with ${data.playerCount} player(s)...`; break;
+        case "waiting":
+          if (data.count !== undefined && data.needed !== undefined)
+            document.getElementById("waiting-count").textContent = `Players joined: ${data.count} / ${data.needed}`;
+          break;
+        case "question":      handleQuestion(data);      break;
+        case "timer":         if (data.secondsLeft !== undefined) updateTimer(data.secondsLeft); break;
+        case "answer_result": handleAnswerResult(data);  break;
+        case "round_end":     handleRoundEnd(data);      break;
+        case "game_over":     handleGameOver(data);      break;
+        case "error":         document.getElementById("error-msg").textContent = msg.message || "Server error"; break;
+      }
+    };
+  }
 
-    const type = msg.type;
-    const data = msg.data || {};
-
-    switch (type) {
-
-      case "welcome":
-        myName = data.name || myName;
-        showScreen("screen-waiting");
-        break;
-
-      case "game_starting":
-        document.getElementById("waiting-count").textContent =
-          `Game starting with ${data.playerCount} player(s)...`;
-        break;
-
-      case "waiting":
-        if (data.count !== undefined && data.needed !== undefined) {
-          document.getElementById("waiting-count").textContent =
-            `Players joined: ${data.count} / ${data.needed}`;
-        }
-        break;
-
-      case "question":
-        handleQuestion(data);
-        break;
-
-      case "timer":
-        if (data.secondsLeft !== undefined) {
-          updateTimer(data.secondsLeft);
-        }
-        break;
-
-      case "answer_result":
-        handleAnswerResult(data);
-        break;
-
-      case "round_end":
-        handleRoundEnd(data);
-        break;
-
-      case "game_over":
-        handleGameOver(data);
-        break;
-
-      case "error":
-        document.getElementById("error-msg").textContent = msg.message || "Server error";
-        break;
-
-      default:
-        console.warn("Unknown message type:", type, msg);
-    }
-  };
-  } // end connect()
-
-  // Kick off the first connection attempt when the page loads.
   connect();
 
-  // ── Join flow ─────────────────────────────────────────────────────────
   document.getElementById("joinBtn").addEventListener("click", sendJoin);
-  document.getElementById("nameInput").addEventListener("keydown", e => {
-    if (e.key === "Enter") sendJoin();
-  });
+  document.getElementById("nameInput").addEventListener("keydown", e => { if (e.key === "Enter") sendJoin(); });
 
   function sendJoin() {
     const name  = document.getElementById("nameInput").value.trim();
     const errEl = document.getElementById("error-msg");
-
-    if (!name) {
-      errEl.textContent = "Please enter a name.";
-      return;
-    }
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      errEl.textContent = "Connecting to server… try again in a moment.";
-      return;
-    }
-
+    if (!name) { errEl.textContent = "Please enter your name."; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { errEl.textContent = "Connecting... try again in a moment."; return; }
     myName = name;
     errEl.textContent = "";
     document.getElementById("joinBtn").disabled = true;
     ws.send(JSON.stringify({ type: "join", data: { name } }));
   }
 
-  // ── Question screen ───────────────────────────────────────────────────
   function handleQuestion(data) {
     clearInterval(timerInterval);
     hasAnswered       = false;
     currentQuestionId = data.id ?? null;
+    totalSeconds      = 20;
 
     document.getElementById("question-text").textContent = data.text || "Question loading...";
-
-    ["A", "B", "C", "D"].forEach(letter => {
-      const btn = document.getElementById("choice" + letter);
-      btn.textContent = data["choice" + letter] ? `${letter}. ${data["choice" + letter]}` : `${letter}. —`;
-      btn.disabled    = false;
+    ["A","B","C","D"].forEach(l => {
+      document.getElementById("choice" + l + "-text").textContent = data["choice" + l] || "—";
+      document.getElementById("choice" + l).disabled = false;
+      document.getElementById("choice" + l).style.borderColor = "rgba(0,229,255,0.2)";
+      document.getElementById("choice" + l).style.background = "rgba(0,229,255,0.07)";
     });
-
     document.getElementById("answer-status").textContent = "";
 
-    let secondsLeft = 20;
+    let secondsLeft = totalSeconds;
     updateTimer(secondsLeft);
+
     timerInterval = setInterval(() => {
       secondsLeft -= 1;
       updateTimer(secondsLeft);
       if (secondsLeft <= 0) {
         clearInterval(timerInterval);
         disableChoices();
-        document.getElementById("answer-status").textContent = "Time's up!";
+        document.getElementById("answer-status").textContent = "⏱ Time's up!";
       }
     }, 1000);
 
@@ -233,45 +606,46 @@
   }
 
   function updateTimer(secondsLeft) {
-    document.getElementById("timer").textContent = Math.max(0, secondsLeft);
+    const val = Math.max(0, secondsLeft);
+    document.getElementById("timer").textContent = val;
+    const bar = document.getElementById("timer-bar");
+    bar.style.width = (val / totalSeconds * 100) + "%";
+    if (val <= 5) bar.style.background = "linear-gradient(90deg, var(--accent2), var(--accent))";
+    else bar.style.background = "linear-gradient(90deg, var(--cyan), var(--accent))";
   }
 
-  // Submit answer on choice click
-  ["choiceA", "choiceB", "choiceC", "choiceD"].forEach(id => {
+  ["choiceA","choiceB","choiceC","choiceD"].forEach(id => {
     document.getElementById(id).addEventListener("click", function () {
       if (hasAnswered || this.disabled) return;
       hasAnswered = true;
-
       const choice = this.dataset.choice;
       ws.send(JSON.stringify({ type: "answer", data: { questionId: currentQuestionId, choice } }));
-
       disableChoices();
-      document.getElementById("answer-status").textContent = "Answer submitted!";
+      this.style.borderColor = "var(--cyan)";
+      this.style.background  = "rgba(0,229,255,0.2)";
+      document.getElementById("answer-status").textContent = "✅ Answer submitted!";
     });
   });
 
   function disableChoices() {
-    ["choiceA", "choiceB", "choiceC", "choiceD"].forEach(id => {
+    ["choiceA","choiceB","choiceC","choiceD"].forEach(id => {
       document.getElementById(id).disabled = true;
     });
   }
 
   function handleAnswerResult(data) {
     document.getElementById("answer-status").textContent = data.correct
-      ? `Correct! Your score: ${data.score}`
-      : `Wrong. Your score: ${data.score}`;
+      ? `🎉 Correct! Score: ${data.score}`
+      : `❌ Wrong. Score: ${data.score}`;
   }
 
-  // ── Round end screen ──────────────────────────────────────────────────
   function handleRoundEnd(data) {
     clearInterval(timerInterval);
-    document.getElementById("correct-banner").textContent =
-      `Correct answer: ${data.correct || "?"}`;
+    document.getElementById("correct-banner").textContent = data.correct || "?";
     document.getElementById("round-scores").innerHTML = buildScoreRows(data.scores || {});
     showScreen("screen-round-end");
   }
 
-  // ── Game over screen ──────────────────────────────────────────────────
   function handleGameOver(data) {
     clearInterval(timerInterval);
     document.getElementById("winner-label").textContent = `Winner: ${data.winner || "Unknown"}`;
@@ -279,20 +653,15 @@
     showScreen("screen-game-over");
   }
 
-  document.getElementById("playAgainBtn").addEventListener("click", () => {
-    window.location.reload();
-  });
+  document.getElementById("playAgainBtn").addEventListener("click", () => window.location.reload());
 
-  // ── Shared helpers ────────────────────────────────────────────────────
   function buildScoreRows(scores) {
-    const header = `<tr><th>Player</th><th>Score</th></tr>`;
-    const rows = Object.entries(scores)
+    return Object.entries(scores)
       .sort((a, b) => b[1] - a[1])
       .map(([name, score]) => {
-        const marker = name === myName ? " (you)" : "";
-        return `<tr><td>${name}${marker}</td><td>${score}</td></tr>`;
+        const marker = name === myName ? " <span style='color:var(--cyan);font-size:0.8rem;'>(you)</span>" : "";
+        return `<tr><td>${name}${marker}</td><td style="color:var(--accent);font-weight:800;">${score}</td></tr>`;
       }).join("");
-    return header + rows;
   }
 </script>
 </body>
